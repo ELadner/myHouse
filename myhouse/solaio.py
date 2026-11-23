@@ -349,45 +349,6 @@ def find_room(scene, x: float, y: float, level_id=None):
     return None
 
 
-def find_footprint(scene, x=None, y=None, level_id=None):
-    """Outer outline (list of points) of the walls joined together: of the
-    building (x, y) is in or nearest to, or of the largest one when no point
-    is given. None if there are no walls. With level_id only that level's
-    walls count, or every wall if that level has none.
-    Raises ImportError without shapely."""
-    from shapely.geometry import Point, Polygon
-    from shapely.ops import unary_union
-
-    def plans(level):
-        out = []
-        for g in scene.groups:
-            wd = muri.wall_data(g)
-            if wd is None or (level and wd.get("lv") != level):
-                continue
-            p = Polygon(_wall_polygon_world(g))
-            if not p.is_valid:
-                p = p.buffer(0)
-            out.append(p.buffer(GAP_TOL, join_style=2))   # closes the gaps
-        return out
-
-    polys = plans(level_id) or (plans(None) if level_id else [])
-    if not polys:
-        return None
-    union = unary_union(polys)
-    shells = [Polygon(g.exterior) for g in getattr(union, "geoms", [union])]
-    if x is None or y is None:
-        shell = max(shells, key=lambda s: s.area)
-    else:
-        pt = Point(x, y)
-        shell = min(shells, key=lambda s: s.distance(pt))
-    foot = shell.buffer(-GAP_TOL, join_style=2).simplify(0.001)
-    if foot.is_empty:
-        return None
-    if foot.geom_type != "Polygon":
-        foot = max(foot.geoms, key=lambda s: s.area)
-    return [(px, py) for px, py in list(foot.exterior.coords)[:-1]]
-
-
 # ---------------------------------------------------------------------------
 # Impostazioni
 # ---------------------------------------------------------------------------

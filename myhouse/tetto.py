@@ -1,10 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Plugin Tetto per IngeTrazo / MyHouse — crea tetti BIM (IfcRoof) a falde.
 
-Automatic roof: after the outline press P and give a pitch; ridges, hips and
-valleys are worked out for any outline (_tetto_auto.py). Click an edge of the
-outline to make it a gable end. W takes the outline from the walls.
-
 Uso: Extensions > Tetto, scegli spessore e quota di gronda, poi:
   1. CONTORNO: clic per i vertici (1,2,5,4,3,6...), C/Invio chiude.
   2. LINEE INTERNE (facoltative): due clic = una linea (es. 5-6). Gli estremi
@@ -32,9 +28,9 @@ from PySide6.QtWidgets import (
 from core import bim
 from tools.base import Tool, ToolContext
 
-from . import _tetto_auto, muri, piani
+from . import muri, piani
 from ._i18n import tr
-from ._imperial import IN, FT, spin, fmt, ask_length, dflt, imperial
+from ._imperial import IN, FT, spin, fmt, ask_length, dflt
 
 ORDER = 50
 ROOF_COLOR = (0.62, 0.33, 0.28)
@@ -50,7 +46,7 @@ class _Settings:
     thickness = dflt(8 * IN, 0.20)
     z_base = dflt(8 * FT, 3.0)             # quota del punto più basso (gronda)
     offset = 0.0                # sporto del tetto rispetto al contorno
-    pitch = dflt(math.degrees(math.atan2(6, 12)), 30.0)   # automatic roof (degrees)
+    pitch = 30.0                # inclinazione del padiglione automatico (gradi)
     name = tr("Roof")
     level = None                # id del piano che chiude (None = nessuno)
 
@@ -318,32 +314,15 @@ def roof_mesh(d):
         ring = list(orient(region, 1.0).exterior.coords)[:-1]
         top = [(x, y, _z_at(d, x, y)) for x, y in ring]
         xy = [(p[0], p[1]) for p in top]
-        def whole(upper: bool) -> None:
-            if upper:
-                face([P(*p) for p in top])
-            else:
-                face([P(p[0], p[1], p[2] - th) for p in reversed(top)])
-
-        def triangles(upper: bool) -> None:
+        if _is_planar(top) and _is_convex(xy):
+            face([P(*p) for p in top])
+            face([P(p[0], p[1], p[2] - th) for p in reversed(top)])
+        else:
             for a, b, c in _triangulate(xy):
-                if upper:
-                    face([P(*top[a]), P(*top[b]), P(*top[c])])
-                else:
-                    face([P(top[c][0], top[c][1], top[c][2] - th),
-                          P(top[b][0], top[b][1], top[b][2] - th),
-                          P(top[a][0], top[a][1], top[a][2] - th)])
-
-        flat = _is_planar(top)
-        for upper in (True, False):
-            if flat and _is_convex(xy):
-                whole(upper)
-            elif flat:                 # a flat plane with a valley corner:
-                try:                   # one face, no triangles showing
-                    whole(upper)
-                except Exception:
-                    triangles(upper)
-            else:
-                triangles(upper)
+                face([P(*top[a]), P(*top[b]), P(*top[c])])
+                face([P(top[c][0], top[c][1], top[c][2] - th),
+                      P(top[b][0], top[b][1], top[b][2] - th),
+                      P(top[a][0], top[a][1], top[a][2] - th)])
     n = len(poly)
     for i in range(n):
         j = (i + 1) % n
@@ -570,54 +549,15 @@ def ask_settings(parent, scene=None) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Roof pitch as text
-# ---------------------------------------------------------------------------
-
-def pitch_text(deg: float) -> str:
-    """A pitch in degrees the way it is typed: 8/12 (imperial) or 30°."""
-    if imperial():
-        return f"{round(12.0 * math.tan(math.radians(deg)), 2):g}/12"
-    return f"{round(deg, 2):g}°"
-
-
-def parse_pitch(text):
-    """Degrees from 8/12, 8:12, 30°, 30deg or 58%; a bare number is the rise
-    in 12 (imperial) or degrees (metric). None if unreadable or not between
-    1° and 80°."""
-    s = str(text).strip().lower().replace(",", ".").replace(" ", "")
-    try:
-        if s.endswith("°"):
-            deg = float(s[:-1])
-        elif s.endswith("deg"):
-            deg = float(s[:-3])
-        elif s.endswith("%"):
-            deg = math.degrees(math.atan(float(s[:-1]) / 100.0))
-        elif "/" in s or ":" in s:
-            rise, run = s.replace(":", "/").split("/")
-            deg = math.degrees(math.atan2(float(rise), float(run)))
-        elif imperial():
-            deg = math.degrees(math.atan2(float(s), 12.0))
-        else:
-            deg = float(s)
-    except ValueError:
-        return None
-    return deg if 1.0 <= deg <= 80.0 else None
-
-
-# ---------------------------------------------------------------------------
 # Strumento
 # ---------------------------------------------------------------------------
 
 MSG = {
-    "outline": tr("Roof 1/3 outline: click the vertices · W = outline of the "
-                  "walls · C/Enter = close · P = close and compute the roof · "
+    "outline": tr("Roof 1/3 outline: click the vertices · C/Enter = close · "
                   "Backspace = undo · Esc = exit"),
     "lines": tr("Roof 2/3 inner lines (ridge, hips): two clicks = one line, "
-                "snaps to points and lines · P = compute the roof "
-                "automatically · Enter = continue · Backspace = undo"),
-    "auto": tr("Automatic roof: click an edge of the outline to switch it "
-               "between hip and gable · P = pitch · Enter = create roof · "
-               "Backspace = back"),
+                "snaps to points and lines · P = automatic hip roof · "
+                "Enter = continue · Backspace = undo"),
     "heights": tr("Roof 3/3 elevations: click a point to set its elevation · "
                   "Enter = create roof"),
 }
@@ -641,7 +581,6 @@ class TettoTool(Tool):
         self.hover_point: QVector3D | None = None
         self.edit_group = None          # tetto esistente in modifica
         self._undo: list = []
-        self.auto = None                # automatic roof: outline and gables
 
     # -- ciclo di vita -------------------------------------------------------
     def on_activate(self, viewport) -> None:
@@ -778,102 +717,106 @@ class TettoTool(Tool):
         out += list(zip(pts, pts[1:]))
         self.lines = out
 
-    # -- automatic roof ------------------------------------------------------
-    def _auto_start(self, viewport) -> None:
-        """Asks the pitch and works the whole roof out from the outline:
-        every edge a sloping plane, until an edge is clicked into a gable."""
-        label = (tr("Pitch: rise in 12 (8 or 8/12), degrees (33.7°) or "
-                    "percent (67%)") if imperial() else
-                 tr("Pitch: degrees (30), percent (58%) or rise/run (1/2)"))
-        text, ok = QInputDialog.getText(
-            viewport.window(), tr("Roof pitch"), label, QLineEdit.Normal,
-            pitch_text(_Settings.pitch))
-        if not ok:
-            viewport.flash_status(MSG[self.phase], 7000)
-            return
-        deg = parse_pitch(text)
-        if deg is None:
+    def _auto_hip(self, viewport) -> None:
+        """Padiglione automatico: colmo e displuvi calcolati dal contorno
+        (convesso), falde sempre piane con la stessa inclinazione."""
+        pts = [tuple(p) for p in self.points]
+        if _area(pts) < 0:
+            pts.reverse()
+        if len(pts) < 3 or not _is_convex(pts):
             viewport.flash_status(
-                tr("Pitch not understood: type 8/12, 30° or 58%"), 5000)
+                tr("Automatic hip roof: a convex outline is required"), 4000)
+            return
+        deg, ok = QInputDialog.getDouble(
+            viewport.window(), tr("Automatic hip roof"),
+            tr("Roof plane pitch (degrees)"), _Settings.pitch, 1.0, 80.0, 1)
+        if not ok:
             return
         _Settings.pitch = deg
-        fresh = self.auto is None
-        if fresh:
-            self.auto = {"pts": [tuple(p) for p in self.points],
-                         "gables": set()}
-        if not self._auto_solve(viewport):
-            if fresh:
-                self.auto = None
-            return
-        self.phase = "auto"
-        viewport.flash_status(MSG["auto"], 9000)
-        viewport.update()
+        slope = math.tan(math.radians(deg))
+        n = len(pts)
+        defs = []                                  # (nx, ny, c): d = n·x - c
+        for i in range(n):
+            a, b = pts[i], pts[(i + 1) % n]
+            dx, dy = b[0] - a[0], b[1] - a[1]
+            L = math.hypot(dx, dy)
+            if L < EPS:
+                continue
+            nx, ny = -dy / L, dx / L
+            c = nx * a[0] + ny * a[1]
+            if not any(abs(nx - u[0]) < 1e-6 and abs(ny - u[1]) < 1e-6
+                       and abs(c - u[2]) < 1e-4 for u in defs):
+                defs.append((nx, ny, c))
 
-    def _auto_solve(self, viewport) -> bool:
-        slope = math.tan(math.radians(_Settings.pitch))
-        try:
-            pts, lines, hs = _tetto_auto.solve(
-                self.auto["pts"], self.auto["gables"], slope)
-        except _tetto_auto.RoofError:
-            viewport.flash_status(
-                tr("This roof cannot be computed: a gable end must lie "
-                   "between two outside corners, and at least one edge must "
-                   "slope"), 6000)
+        def dist(p):
+            return min(u[0] * p[0] + u[1] * p[1] - u[2] for u in defs)
+
+        def clip(poly, f):
+            out = []
+            for i in range(len(poly)):
+                p, q = poly[i], poly[(i + 1) % len(poly)]
+                fp, fq = f(p), f(q)
+                if fp <= 1e-9:
+                    out.append(p)
+                if (fp < -1e-9 and fq > 1e-9) or (fp > 1e-9 and fq < -1e-9):
+                    t = fp / (fp - fq)
+                    out.append((p[0] + t * (q[0] - p[0]),
+                                p[1] + t * (q[1] - p[1])))
+            return out
+
+        canon: list = []
+
+        def cid(p):
+            for k, c in enumerate(canon):
+                if math.hypot(c[0] - p[0], c[1] - p[1]) < 1e-4:
+                    return k
+            canon.append((p[0], p[1]))
+            return len(canon) - 1
+
+        outline_ids = [cid(p) for p in pts]
+        faces = []
+        for u in defs:
+            poly = pts
+            for v in defs:
+                if v is u:
+                    continue
+                poly = clip(poly, lambda p, u=u, v=v: (
+                    (u[0] - v[0]) * p[0] + (u[1] - v[1]) * p[1] - (u[2] - v[2])))
+                if len(poly) < 3:
+                    break
+            if len(poly) >= 3 and abs(_area(poly)) > 1e-6:
+                faces.append([cid(p) for p in poly])
+
+        def on_outline(p) -> bool:
+            for i in range(n):
+                a, b = pts[i], pts[(i + 1) % n]
+                dx, dy = b[0] - a[0], b[1] - a[1]
+                L2 = dx * dx + dy * dy
+                t = max(0.0, min(1.0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy)
+                                 / L2)) if L2 > EPS else 0.0
+                if math.hypot(a[0] + t * dx - p[0], a[1] + t * dy - p[1]) < 1e-4:
+                    return True
             return False
-        self.points = pts
-        self.lines = lines
-        self.heights = {self._key(h): h[2] for h in hs}
+
+        edges = set()
+        for f in faces:
+            for i in range(len(f)):
+                p, q = f[i], f[(i + 1) % len(f)]
+                if p == q:
+                    continue
+                mid = ((canon[p][0] + canon[q][0]) / 2,
+                       (canon[p][1] + canon[q][1]) / 2)
+                if not on_outline(mid):
+                    edges.add((min(p, q), max(p, q)))
+        self.points = [canon[k] for k in outline_ids]
+        self.lines = [(canon[p], canon[q]) for p, q in sorted(edges)]
+        self.heights = {self._key(c): slope * dist(c) for c in canon}
         self.line_start = None
         self._undo = []
-        return True
-
-    def _pick_edge(self, vp, world, radius=16.0):
-        """Index of the outline edge nearest the cursor (in pixels)."""
-        pts = self.auto["pts"]
-        base = self._base()
-        px = vp._world_to_pixel(QVector3D(world))
-        best, edge = None, None
-        for i in range(len(pts)):
-            a, b = pts[i], pts[(i + 1) % len(pts)]
-            pa = vp._world_to_pixel(QVector3D(a[0], a[1], base))
-            pb = vp._world_to_pixel(QVector3D(b[0], b[1], base))
-            if px is None or pa is None or pb is None:
-                d = _tetto_auto.seg_dist((world.x(), world.y()), a, b) * 100
-            else:
-                d = _tetto_auto.seg_dist((px[0], px[1]), (pa[0], pa[1]),
-                                         (pb[0], pb[1]))
-            if d < radius and (best is None or d < best):
-                best, edge = d, i
-        return edge
-
-    def _auto_click(self, vp, world) -> None:
-        i = self._pick_edge(vp, world)
-        if i is None:
-            vp.flash_status(tr("Click an edge of the outline"), 3000)
-            return
-        self.auto["gables"] ^= {i}
-        if not self._auto_solve(vp):
-            self.auto["gables"] ^= {i}       # no roof that way: as it was
-
-    def _from_walls(self, viewport) -> None:
-        """The outline is the outer face of the walls under the cursor."""
-        from . import solaio
-        h = self.hover_point
-        try:
-            poly = solaio.find_footprint(
-                viewport.scene, h.x() if h is not None else None,
-                h.y() if h is not None else None, _Settings.level)
-        except ImportError:
-            viewport.flash_status(tr("Needs shapely: pip install shapely"), 6000)
-            return
-        if not poly or len(poly) < 3:
-            viewport.flash_status(tr("No walls found for the outline"), 4000)
-            return
-        self.points = [tuple(p) for p in poly]
-        self.lines, self.heights, self.auto = [], {}, None
-        self.line_start = None
-        self.phase = "lines"
-        viewport.flash_status(MSG["lines"], 9000)
+        self.phase = "heights"
+        viewport.flash_status(
+            tr("Hip roof computed: you can still change the elevations · "
+               "Enter = create roof"), 7000)
         viewport.update()
 
     def _push_undo(self) -> None:
@@ -910,8 +853,6 @@ class TettoTool(Tool):
                               p[1] - self.line_start[1]) > SAME:
                     self._add_line(self.line_start, p)
                 self.line_start = None
-        elif self.phase == "auto":
-            self._auto_click(vp, ctx.world)
         else:  # heights: si sceglie il quadratino più vicino al cursore (px)
             near = self._pick(vp, ctx.world)
             if near is None:
@@ -949,13 +890,6 @@ class TettoTool(Tool):
         from PySide6.QtCore import QPointF, QRectF
         if not self.points:
             return
-        if self.phase == "auto":
-            painter.save()
-            try:
-                self._draw_auto(viewport, painter)
-            finally:
-                painter.restore()
-            return
         painter.save()
         hot = None
         if self.hover_point is not None and self.phase != "outline":
@@ -987,44 +921,6 @@ class TettoTool(Tool):
                 painter.drawEllipse(QPointF(pq[0], pq[1]), 8, 8)
         painter.restore()
 
-    def _draw_auto(self, viewport, painter) -> None:
-        """A dot on every edge of the outline (blue = gable end) and the
-        rise at the points that are above the eaves."""
-        from PySide6.QtCore import QPointF, QRectF
-        painter.setRenderHint(painter.RenderHint.Antialiasing)
-        pts, gables = self.auto["pts"], self.auto["gables"]
-        base = self._base()
-        hot = (self._pick_edge(viewport, self.hover_point)
-               if self.hover_point is not None else None)
-        for i in range(len(pts)):
-            a, b = pts[i], pts[(i + 1) % len(pts)]
-            pm = viewport._world_to_pixel(
-                QVector3D((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, base))
-            if pm is None:
-                continue
-            gable = i in gables
-            r = (9 if gable else 5) + (2 if i == hot else 0)
-            painter.setPen(QPen(QColor(255, 255, 255) if gable
-                                else QColor(40, 40, 40), 1.5))
-            painter.setBrush(QColor(255, 210, 0) if i == hot
-                             else QColor(0, 110, 220) if gable
-                             else QColor(255, 255, 255))
-            painter.drawEllipse(QPointF(pm[0], pm[1]), r, r)
-            if gable:
-                painter.setPen(QPen(QColor(20, 20, 20) if i == hot
-                                    else QColor(255, 255, 255)))
-                painter.drawText(QRectF(pm[0] - r, pm[1] - r, 2 * r, 2 * r),
-                                 Qt.AlignCenter, tr("G"))
-        painter.setPen(QPen(QColor(20, 20, 20)))
-        for c in self._ctrl():
-            rel = self._rel(c)
-            if rel <= 1e-6:
-                continue
-            pc = viewport._world_to_pixel(QVector3D(c[0], c[1], self._z(c)))
-            if pc is not None:
-                painter.drawText(QPointF(pc[0] + 8, pc[1] - 8),
-                                 "+" + fmt(rel))
-
     def on_hover(self, ctx: ToolContext) -> None:
         self.hover_point = QVector3D(ctx.world)
         ctx.viewport.update()
@@ -1032,13 +928,9 @@ class TettoTool(Tool):
     def claims_key(self, key: int, modifiers) -> bool:
         if modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier):
             return False
-        if key == Qt.Key_W and self.phase == "outline":
-            return True
-        if key == Qt.Key_P and (self.phase in ("lines", "auto") or (
-                self.phase == "outline" and len(self.points) >= 3)):
-            return True
         return key == Qt.Key_Escape or (
-            key == Qt.Key_C and bool(self.points))
+            key == Qt.Key_C and bool(self.points)) or (
+            key == Qt.Key_P and self.phase == "lines")
 
     def on_key(self, viewport, key: int, modifiers) -> bool:
         if key == Qt.Key_Escape:
@@ -1061,27 +953,11 @@ class TettoTool(Tool):
             viewport.flash_status(MSG[self.phase], 7000)
             viewport.update()
             return True
-        if key == Qt.Key_W and self.phase == "outline":
-            self._from_walls(viewport)
-            return True
-        if key == Qt.Key_P and self.phase in ("outline", "lines", "auto"):
-            if self.phase == "outline":          # close the outline first
-                pts = muri._dedupe(list(self.points), True)
-                if len(pts) < 3:
-                    viewport.flash_status(tr("At least 3 vertices needed"), 3000)
-                    return True
-                self.points = [tuple(p) for p in pts]
-                self.phase = "lines"
-            self._auto_start(viewport)
-            viewport.update()
+        if key == Qt.Key_P and self.phase == "lines":
+            self._auto_hip(viewport)
             return True
         if key == Qt.Key_Backspace:
-            if self.phase == "auto":             # back to the bare outline
-                self.points = list(self.auto["pts"])
-                self.lines, self.heights, self.auto = [], {}, None
-                self.phase = "lines"
-                viewport.flash_status(MSG["lines"], 7000)
-            elif self.phase == "outline" and self.points:
+            if self.phase == "outline" and self.points:
                 self.points.pop()
             elif self.phase == "lines":
                 if self._undo:

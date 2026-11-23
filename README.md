@@ -38,12 +38,6 @@ Modifiche rispetto alla versione 1.0. Il codice sorgente è ora anche nella cart
 - Dividi muro: taglia un muro in due nel punto del clic.
 - Giunto tra muri: angolo a sghembo oppure di testa, con l'uno o l'altro muro passante.
 
-**Tetti**
-
-- Tetto automatico: dopo il contorno premi P e indica la pendenza (8/12, 30° o 58%); colmi, displuvi e compluvi sono calcolati per qualsiasi contorno, anche con rientranze e sporgenze.
-- Clic su un lato del contorno per farne un timpano; un altro clic lo riporta a falda.
-- W prende il contorno dal filo esterno dei muri.
-
 **Altro**
 
 - La barra MyHouse si mostra da sola al primo avvio con IngeTrazo 0.6.3.
@@ -85,12 +79,6 @@ Changes on top of version 1.0. The source code is now also in the `myhouse/` fol
 - Stretch wall: moves one end by click or typed length; joined corners follow.
 - Split wall: cuts a wall in two at the clicked point.
 - Wall joint: mitred or butt corner, with either wall running through.
-
-**Roofs**
-
-- Automatic roof: after the outline press P and give the pitch (8/12, 30° or 58%); ridges, hips and valleys are worked out for any outline, bump-outs and recesses included.
-- Click an edge of the outline to make it a gable end; click again for a sloping plane.
-- W takes the outline from the outer face of the walls.
 
 **Other**
 
