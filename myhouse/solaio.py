@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from ._lingua import tr
+from ._imperial import FT, IN, LengthSpin, dflt
 from ._scroll import scroll_form
 
 import copy
@@ -48,7 +49,7 @@ MAX_ANGLE = 75.0
 
 
 class _Settings:
-    thickness = 0.20
+    thickness = dflt(6 * IN, 0.20)
     z_top = 0.0
     name = tr("Solaio")
     auto = False
@@ -459,7 +460,7 @@ def find_footprint(scene, x=None, y=None, level_id=None):
 
 
 def _spin(value, lo, hi):
-    s = QDoubleSpinBox()
+    s = LengthSpin()
     s.setDecimals(3)
     s.setRange(lo, hi)
     s.setValue(value)
@@ -1658,12 +1659,12 @@ def _outliner_kind(group):
         sv = scavo_data(group)
         if sv is None:
             return None
-        from core.units import fmt_len
+        from ._imperial import fmt_len
         return {"type": tr("Scavo"),
                 "props": [(tr("Profondità"), fmt_len(sv["depth"])),
                           (tr("Inclinazione"),
                            "%g°" % float(sv.get("angle") or 0.0))]}
-    from core.units import fmt_len
+    from ._imperial import fmt_len
     from . import piani
     return {"type": tr("Solaio"),
             "props": [(tr("Spessore"), fmt_len(d["th"])),

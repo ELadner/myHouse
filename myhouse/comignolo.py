@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from ._lingua import tr
+from ._imperial import LengthSpin
 from ._scroll import scroll_form
 
 import math
@@ -295,7 +296,7 @@ def roof_under(scene, x, y, z=0.0):
 
 
 def _spin(value, lo, hi):
-    s = QDoubleSpinBox()
+    s = LengthSpin()
     s.setDecimals(3)
     s.setRange(lo, hi)
     s.setValue(value)
@@ -617,7 +618,7 @@ def register(api) -> None:
             d = chimney_data(group)
             if d is None:
                 return None
-            from core.units import fmt_len
+            from ._imperial import fmt_len
             return {"type": tr("Comignolo"),
                     "props": [(tr("Tipo"), dict(TIPI).get(d.get("tipo"), "")),
                               (tr("Larghezza"), fmt_len(d["w"])),

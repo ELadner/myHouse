@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from ._lingua import tr
+from ._imperial import LengthSpin
 from ._scroll import scroll_form
 
 import math
@@ -390,7 +391,7 @@ def _disegno_posto(get):
 
 
 def _spin(value, lo, hi, dec=3):
-    s = QDoubleSpinBox()
+    s = LengthSpin()
     s.setDecimals(dec)
     s.setRange(lo, hi)
     s.setValue(value)
@@ -735,7 +736,7 @@ def _outliner_kind(group):
     d = postoauto_data(group)
     if d is None:
         return None
-    from core.units import fmt_len
+    from ._imperial import fmt_len
     return {"type": tr("Posto auto disabili") if d.get("hand") else tr("Posto auto"),
             "props": [(tr("Forma"), tr(dict(FORME).get(d["forma"], d["forma"]))),
                       (tr("Larghezza"), fmt_len(d["larghezza"])),

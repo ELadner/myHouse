@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from ._lingua import tr
+from ._imperial import FT, IN, LengthSpin, dflt
 from ._scroll import scroll_form
 
 import copy
@@ -38,14 +39,14 @@ ZONE_MAT = {"top": tr("pavimento rampa"), "side": tr("struttura rampa")}
 
 
 class _Settings:
-    w = 1.50
-    height = 0.50
+    w = dflt(36 * IN, 1.50)
+    height = dflt(24 * IN, 0.50)
     z = 0.0
     name = tr("Rampa")
     ortho = True
     side = "left"
     kind = "piena"
-    th = 0.15
+    th = dflt(6 * IN, 0.15)
     level = None
     tlv = None
     toff = 0.0
@@ -337,7 +338,7 @@ def _rail_value(rs, rk):
 
 
 def _spin(value, lo, hi):
-    s = QDoubleSpinBox()
+    s = LengthSpin()
     s.setDecimals(3)
     s.setRange(lo, hi)
     s.setValue(value)
@@ -699,7 +700,7 @@ def _outliner_kind(group):
     d = ramp_data(group)
     if d is None:
         return None
-    from core.units import fmt_len
+    from ._imperial import fmt_len
     tot = total_length(d)
     slope = d["height"] / tot if tot > EPS else 0.0
     return {"type": tr("Rampa"),

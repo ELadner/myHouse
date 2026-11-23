@@ -9,7 +9,7 @@ import math
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPen, QVector3D
 
-from core.units import fmt_len
+from ._imperial import fmt_len
 
 from .muri import (KEY, PAINT_KEYS, MuriCommand, _selected_walls,
                    build_walls, rebuild_wall, update_roof_clips, wall_corners,
@@ -540,14 +540,14 @@ class RaccordoMuriTool:
 
     def on_activate(self, viewport) -> None:
         from PySide6.QtCore import QTimer
-        from PySide6.QtWidgets import QInputDialog
-        val, ok = QInputDialog.getDouble(
+        from ._imperial import ask_length
+        val, ok = ask_length(
             viewport.window(), tr("Raccordo muri"),
             tr("Distanza massima da raccordare (m): vuoti tra muri allineati\n"
                "e angoli tra muri non allineati\n"
                "Con dei muri selezionati: solo quelli che li toccano\n"
                "(con 2 soli muri selezionati l'angolo non ha limite)"),
-            RaccordoMuriTool.max_gap, 0.05, 50.0, 2)
+            RaccordoMuriTool.max_gap, 0.05, 50.0)
         if ok:
             RaccordoMuriTool.max_gap = val
             raccordo_muri(viewport, val)

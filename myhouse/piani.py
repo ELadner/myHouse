@@ -98,7 +98,7 @@ def level_combo(scene, current):
 def level_props(d):
     if not d.get("lv"):
         return []
-    from core.units import fmt_len
+    from ._imperial import fmt_len
     return [(tr("Piano"), d.get("lvn", "?")),
             (tr("Distanza dal piano"), fmt_len(d.get("off", 0.0)))]
 
@@ -648,7 +648,7 @@ class _MostraPiani:
     def draw(self, p: QPainter) -> None:
         if not SHOW["on"] or not self._prospetto():
             return
-        from core.units import fmt_len
+        from ._imperial import fmt_len
         w, h = self.vp.width(), self.vp.height()
         font = QFont()
         font.setPointSize(10)

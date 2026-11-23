@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from ._scroll import scroll_form
 from ._lingua import tr
+from ._imperial import LengthSpin
 
 import math
 
@@ -480,7 +481,7 @@ def build_volta(scene, d, name) -> bool:
 
 
 def _spin(value, lo, hi):
-    s = QDoubleSpinBox()
+    s = LengthSpin()
     s.setDecimals(3)
     s.setRange(lo, hi)
     s.setValue(value)
@@ -832,7 +833,7 @@ def register(api) -> None:
             d = volta_data(group)
             if d is None:
                 return None
-            from core.units import fmt_len
+            from ._imperial import fmt_len
             return {"type": tr("Volta"),
                     "props": [(tr("Tipo"), dict(TIPI).get(d.get("tipo"), "")),
                               (tr("Altezza da terra"), fmt_len(d["z"])),

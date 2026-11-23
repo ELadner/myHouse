@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 
 from ._scroll import fit_dialog
 from ._lingua import tr
+from ._imperial import LengthSpin
 
 ORDER = 910
 
@@ -187,11 +188,11 @@ def _chiedi(parent, cur: dict):
 
     form = QFormLayout()
     form.addRow(tr("Immagine"), riga)
-    forza = QDoubleSpinBox()
+    forza = LengthSpin()
     forza.setRange(0.05, 20.0)
     forza.setSingleStep(0.1)
     forza.setValue(cur["forza"])
-    rot = QDoubleSpinBox()
+    rot = LengthSpin()
     rot.setRange(0.0, 360.0)
     rot.setSingleStep(15.0)
     rot.setSuffix(" °")

@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 
 from core import bim
 from . import _ifc
-from core.units import fmt_len
+from ._imperial import fmt_len
 from tools.base import Tool, ToolContext
 
 from . import _codici, _tipi, finestre, muri, piani

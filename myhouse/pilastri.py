@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from ._lingua import tr
+from ._imperial import FT, IN, LengthSpin, dflt
 from ._scroll import scroll_form
 
 import math
@@ -44,12 +45,12 @@ def _grid_snap(scene, x, y):
 
 class _Settings:
     shape = "square"
-    w = 0.30
-    dp = 0.40
-    dia = 0.35
+    w = dflt(12 * IN, 0.30)
+    dp = dflt(16 * IN, 0.40)
+    dia = dflt(12 * IN, 0.35)
     tf = 0.02
     tw = 0.012
-    h = 3.00
+    h = dflt(8 * FT, 3.00)
     z0 = 0.0
     rot = 0.0
     anc = "c"
@@ -296,7 +297,7 @@ def rebuild_pillar(group, p: dict) -> None:
 
 
 def _spin(value, lo, hi):
-    s = QDoubleSpinBox()
+    s = LengthSpin()
     s.setDecimals(3)
     s.setRange(lo, hi)
     s.setValue(value)
@@ -826,7 +827,7 @@ def _outliner_kind(group):
     d = pillar_data(group)
     if d is None:
         return None
-    from core.units import fmt_len
+    from ._imperial import fmt_len
     if d["shape"] == "round":
         size = f"Ø {fmt_len(d['dia'])}"
     elif d["shape"] == "ibeam":

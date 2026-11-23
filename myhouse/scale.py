@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from ._lingua import tr
+from ._imperial import FT, IN, LengthSpin, dflt
 from ._scroll import scroll_form
 
 import math
@@ -44,15 +45,15 @@ FLANK_SINGLE = True
 
 
 class _Settings:
-    w = 1.00
-    tread = 0.30
-    riser = 0.17
+    w = dflt(36 * IN, 1.00)
+    tread = dflt(10 * IN, 0.30)
+    riser = dflt(7.75 * IN, 0.17)
     z = 0.0
     name = tr("Scala")
     ortho = True
     side = "left"
     kind = "piena"
-    th = 0.15
+    th = dflt(6 * IN, 0.15)
     bw = FRAME_W
     fix = "left"
     emb = EMBED
@@ -497,7 +498,7 @@ class _TexturePick(QWidget):
         rst.clicked.connect(self._reset)
 
         def sp(val, lo, hi, tip, prefix="", suffix=""):
-            w = QDoubleSpinBox()
+            w = LengthSpin()
             w.setDecimals(3)
             w.setRange(lo, hi)
             w.setValue(val)
@@ -552,7 +553,7 @@ class _TexturePick(QWidget):
 
 
 def _spin(value, lo, hi):
-    s = QDoubleSpinBox()
+    s = LengthSpin()
     s.setDecimals(3)
     s.setRange(lo, hi)
     s.setValue(value)
@@ -979,7 +980,7 @@ def _outliner_kind(group):
     d = stair_data(group)
     if d is None:
         return None
-    from core.units import fmt_len
+    from ._imperial import fmt_len
     n = len(layout(d))
     return {"type": tr("Scala"),
             "props": [(tr("Tipologia"), {

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from ._lingua import tr
+from ._imperial import FT, IN, LengthSpin, dflt
 from ._scroll import scroll_form
 from . import _codici, _tipi
 from ._strati import (HatchPick, edit_layers, hatch_texture, layers_row,
@@ -22,7 +23,7 @@ import copy
 
 from core import bim
 from core.history import Command
-from core.units import fmt_len
+from ._imperial import fmt_len
 from tools.base import Tool, ToolContext
 
 WALL_COLOR = (0.82, 0.80, 0.76)
@@ -143,7 +144,7 @@ class TexturePick(QWidget):
         rst.clicked.connect(self._reset)
 
         def sp(val, lo, hi, tip, prefix="", suffix=""):
-            w = QDoubleSpinBox()
+            w = LengthSpin()
             w.setDecimals(3)
             w.setRange(lo, hi)
             w.setValue(val)
@@ -1793,8 +1794,8 @@ class MuriCommand(Command):
 
 class _Settings:
     used = False
-    thickness = 0.30
-    height = 3.00
+    thickness = dflt(4.5 * IN, 0.30)
+    height = dflt(8 * FT, 3.00)
     base_offset = 0.0
     name = tr("Muro")
     ortho = True
@@ -1873,7 +1874,7 @@ def skirt_results(w) -> dict:
 
 
 def _spin(value, lo, hi):
-    s = QDoubleSpinBox()
+    s = LengthSpin()
     s.setDecimals(3)
     s.setRange(lo, hi)
     s.setValue(value)

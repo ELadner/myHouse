@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from ._lingua import tr
+from ._imperial import LengthSpin
 from ._scroll import scroll_form
 
 import copy
@@ -471,7 +472,7 @@ def nearest_edge(scene, x, y):
 
 
 def _spin(value, lo, hi, dec=3):
-    s = QDoubleSpinBox()
+    s = LengthSpin()
     s.setDecimals(dec)
     s.setRange(lo, hi)
     s.setValue(value)
@@ -775,7 +776,7 @@ def _outliner_kind(group):
     d = gutter_data(group)
     if d is None:
         return None
-    from core.units import fmt_len
+    from ._imperial import fmt_len
     _ls, total = _lengths(_pts3(d))
     props = [(tr("Tipo"), dict(KINDS).get(d["kind"], d["kind"])),
              (tr("Lunghezza"), fmt_len(total)),
