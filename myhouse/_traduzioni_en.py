@@ -4023,4 +4023,16 @@ TR = {
         "Dual bi-fold (4 panels)",
     "{n} pannelli a libro":
         "{n} bi-fold panels",
+    " · R = maniglia dall'altro lato":
+        " · R = handle on the other side",
+    "Porta ribaltata: maniglia dall'altro lato":
+        "Door reversed: handle on the other side",
+    "Porta non ribaltata":
+        "Door not reversed",
+    "RIBALTATA (R)":
+        "REVERSED (R)",
+    "non ribaltata (R)":
+        "not reversed (R)",
+    "Ribalta la porta (maniglia dall'altro lato)":
+        "Reverse door (handle on the other side)",
 }
