@@ -89,3 +89,42 @@ def test_dialog_returns_and_enables_mullion(myhouse, monkeypatch):
     p = finestre.ask_params(_window(), cur, "Window", "Place")
     assert seen == {"one": False, "three": (True, False), "web": True}
     assert p["leaves"] == 3 and p["mw"] == pytest.approx(0.04) and p["mc"] == pytest.approx(0.02)
+
+
+def test_space_cycles_left_middle_right(myhouse):
+    from myhouse import finestre
+
+    class S:
+        flip, mid, level = False, False, None
+    seen = []
+    for _ in range(4):
+        seen.append((S.flip, S.mid, finestre.edge_word(S), finestre.edge_word(S, True)))
+        finestre.next_edge(S)
+    assert [s[:2] for s in seen] == [(False, False), (False, True), (True, False), (False, False)]
+    assert [s[2] for s in seen[:3]] == ["left", "middle", "right"]
+    assert [s[3] for s in seen[:3]] == ["LEFT", "CENTER", "RIGHT"]
+
+
+def test_middle_holds_the_unit_by_its_centre(viewport):
+    from PySide6.QtGui import QVector3D
+    from myhouse import finestre, muri, porte
+    scene = viewport.scene
+    muri.build_walls(scene, [(0., 0.), (6., 0.)], False, 0.30, 2.7, 0.0, "W")
+    cursor = QVector3D(3., 0.1, 0.)
+
+    class S:
+        flip, mid, level = False, False, None
+    left = finestre.place_edge(scene, cursor, S, 1.20)
+    S.mid = True
+    middle = finestre.place_edge(scene, cursor, S, 1.20)
+    S.mid, S.flip = False, True
+    right = finestre.place_edge(scene, cursor, S, 1.20)
+
+    def span(place):
+        (ux, _uy), _n = finestre._axes(place)
+        a = place["o"][0]
+        return tuple(sorted((a, a + ux * 1.20)))
+    assert span(left) == pytest.approx((3.0, 4.2))
+    assert span(middle) == pytest.approx((2.4, 3.6))
+    assert span(right) == pytest.approx((1.8, 3.0))          # 1.4's flip, unchanged
+    assert left["flip"] is False and middle["flip"] is False and right["flip"] is True
