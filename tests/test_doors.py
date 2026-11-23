@@ -1,0 +1,85 @@
+import pytest
+from PySide6.QtWidgets import QComboBox, QDialog, QFormLayout
+
+
+def rows(dlg):
+    """{label text: field widget} of every form row of a dialog."""
+    out = {}
+    for form in dlg.findChildren(QFormLayout):
+        for r in range(form.rowCount()):
+            li, fi = form.itemAt(r, QFormLayout.LabelRole), form.itemAt(r, QFormLayout.FieldRole)
+            if li is not None and fi is not None and li.widget() is not None and fi.widget() is not None:
+                out[li.widget().text()] = fi.widget()
+    return out
+
+
+@pytest.fixture
+def door_dialog(myhouse, window, monkeypatch):
+    """Runs porte.ask_params with 'play(rows)' in place of the user; returns its result."""
+    from myhouse import _imperial, porte
+    monkeypatch.setattr(_imperial, "_setting", "metric")
+
+    def run(play, **current):
+        def fake_exec(dlg):
+            dlg.show()
+            play(rows(dlg))
+            dlg.close()
+            return QDialog.Accepted
+        monkeypatch.setattr(QDialog, "exec", fake_exec)
+        base = dict(porte._params_geom(), W=0.90, H=2.10, fw=0.06, fd=0.12, sw=0.04, leaves=1, model="porta")
+        base.update(current)
+        return porte.ask_params(window, base, "Door", "Place")
+    return run
+
+
+def label(italian):
+    from myhouse._lingua import tr
+    return tr(italian)
+
+
+W, H, DW, DH = "Larghezza totale (W) (m)", "Altezza totale (H) (m)", "Larghezza porta, senza telaio (m)", "Altezza porta, senza telaio (m)"
+FW, LEAVES, A1 = "Telaio: larghezza profilo (f) (m) · 0 = senza telaio", "Ante", "Anta 1: larghezza (a1) (m)"
+
+
+def test_door_size_is_the_unit_less_the_frame(myhouse):
+    from myhouse import porte
+    d = dict(W=0.90, H=2.10, fw=0.06, leaves=1, model="porta")
+    assert porte.door_size(d) == pytest.approx((0.90 - 0.12 - 0.006, 2.10 - 0.06 - 0.006))
+    assert porte.door_size(dict(d, leaves=2)) == pytest.approx((0.90 - 0.12 - 0.012, 2.10 - 0.066))
+    assert porte.door_size(dict(d, model="varco")) == pytest.approx((0.90, 2.10))    # the hole itself
+    assert porte.door_size(dict(d, fw=0.0)) == pytest.approx((0.90, 2.10))           # no frame
+
+
+def test_dialog_shows_the_slab_and_keeps_it_when_the_frame_changes(door_dialog):
+    seen = {}
+
+    def play(r):
+        seen["start"] = (r[label(DW)].value(), r[label(DH)].value())
+        r[label(DW)].setValue(0.80)                       # an 80 cm door
+        seen["total"] = r[label(W)].value()
+        r[label(FW)].setValue(0.10)                       # a wider frame: the door stays 80
+        seen["after"] = (r[label(DW)].value(), r[label(W)].value())
+        r[label(W)].setValue(1.20)                        # typing the hole instead
+        seen["slab"] = r[label(DW)].value()
+    p = door_dialog(play)
+    assert seen["start"] == pytest.approx((0.774, 2.034))
+    assert seen["total"] == pytest.approx(0.80 + 0.12 + 0.006)
+    assert seen["after"] == pytest.approx((0.80, 0.80 + 0.20 + 0.006))
+    assert seen["slab"] == pytest.approx(1.20 - 0.20 - 0.006)
+    assert p["W"] == pytest.approx(1.20) and p["fw"] == pytest.approx(0.10)
+
+
+def test_dialog_two_leaves_and_asymmetric_follow(door_dialog):
+    seen = {}
+
+    def play(r):
+        leaves = r[label(LEAVES)]
+        leaves.setCurrentIndex(leaves.findData(2))
+        seen["two"] = (r[label(DW)].value(), r[label(W)].value())          # slab kept, one more gap in the hole
+        leaves.setCurrentIndex(leaves.findData(3))
+        r[label(A1)].setValue(0.50)
+        seen["asym"] = (r[label(W)].value(), r[label(DW)].value())
+    door_dialog(play)
+    assert seen["two"] == pytest.approx((0.774, 0.774 + 0.12 + 0.012))
+    w, dw = seen["asym"]
+    assert dw == pytest.approx(w - 0.12 - 0.012)

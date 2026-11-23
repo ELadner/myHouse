@@ -4007,4 +4007,12 @@ TR = {
         "Units…",
     "Piedi e pollici o metrico nelle finestre di myHouse":
         "Feet and inches or metric in the myHouse dialogs",
+    "Misura della porta vera e propria (l'anta). Il telaio le sta intorno, fuori da questa misura: il foro nel muro è più largo di due profili e più alto di uno.":
+        "Size of the door itself (the slab). The frame goes around it, outside this size, so the hole in the wall is wider by two frame widths and taller by one.",
+    "Larghezza porta, senza telaio (m)":
+        "Door width, without frame (m)",
+    "Altezza porta, senza telaio (m)":
+        "Door height, without frame (m)",
+    "Porta senza telaio":
+        "Door without frame",
 }

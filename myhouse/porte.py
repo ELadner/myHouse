@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 
 from core import bim
 from . import _ifc
-from ._imperial import fmt_len
+from ._imperial import FT, IN, dflt, fmt_len
 from tools.base import Tool, ToolContext
 
 from . import _codici, _tipi, finestre, muri, piani
@@ -51,7 +51,7 @@ SLIDE_HANDLE_KEYS = tuple(k for k, _ in SLIDE_HANDLE_KINDS)
 ARCH_KINDS = (("none", tr("Rettangolare")),
               ("full", tr("Arco a tutto sesto")),
               ("low", tr("Arco ribassato")))
-GARAGE_SIZE = (2.50, 2.20)
+GARAGE_SIZE = (dflt(9 * FT, 2.50), dflt(7 * FT, 2.20))
 GLASS_COLOR = (0.75, 0.85, 0.90)
 METAL_COLOR = (0.75, 0.75, 0.78)
 DEFAULT_PAINT = {"frame": (0.95, 0.95, 0.92),
@@ -92,6 +92,29 @@ PANELS = {
 }
 STRIPS = [0.071, 0.186, 0.292, 0.397, 0.502, 0.607, 0.712, 0.818, 0.923]
 ORDER = 30
+GAP = 0.003                      # play between leaf and frame, each side
+
+
+def _panels(model: str, leaves) -> int:
+    """How many panels stand side by side in the frame."""
+    return int(leaves) if model == "porta" else 1
+
+
+def _around(model: str, leaves, fw: float):
+    """What the frame adds around the door itself: (in width, in height).
+    A plain opening and a door without a frame add nothing."""
+    if model == "varco" or fw < 0.005:
+        return 0.0, 0.0
+    return 2 * fw + 2 * GAP * _panels(model, leaves), fw + 2 * GAP
+
+
+def door_size(d: dict):
+    """(width, height) of the door itself, the slab, without the frame: a
+    30" door is 30" wide here, and its frame sits outside that. The stored
+    W and H are the whole unit, frame included (that is the hole in the wall)."""
+    aw, ah = _around(d.get("model", "porta"), d["leaves"], d["fw"])
+    return d["W"] - aw, d["H"] - ah
+
 PAINT_KEYS = ("col_frame", "tex_frame", "col_leaf", "tex_leaf",
               "col_glass", "tex_glass", "col_handle", "tex_handle")
 DOOR_ZONES = (("leaf", tr("anta e telaio")),
@@ -100,15 +123,17 @@ DOOR_ZONES = (("leaf", tr("anta e telaio")),
 
 
 class _Settings:
-    W = 0.90
-    H = 2.10
+    fw = dflt(0.75 * IN, 0.06)             # 3/4" jamb
+    # W and H are the whole unit, frame included; in feet and inches a 3068
+    # door (slab 3'0" x 6'8") with its frame around it
+    W = dflt(36 * IN + 2 * fw + 2 * GAP, 0.90)
+    H = dflt(80 * IN + fw + 2 * GAP, 2.10)
     sill = 0.0
     leaves = 1
     asym = False
     w1 = 0.0
-    fw = 0.06
-    fd = 0.12
-    sw = 0.04
+    fd = dflt(4.5625 * IN, 0.12)           # 4 9/16" jamb depth
+    sw = dflt(1.75 * IN, 0.04)
     model = "porta"
     arch = "none"
     arch_h = 0.30
@@ -897,6 +922,14 @@ def ask_params(parent, current: dict, title: str, ok_text: str,
     form.addRow(finestre._Schema(_disegno_porta))
     W = spin(current["W"], 0.3, 20.0)
     H = spin(current["H"], 0.5, 20.0)
+    # the door itself (the slab); the totals above follow it and it follows them
+    dW = spin(0.3, 0.05, 20.0)
+    dH = spin(0.5, 0.05, 20.0)
+    for s in (dW, dH):
+        s.setToolTip(tr(
+            "Misura della porta vera e propria (l'anta). Il telaio le sta "
+            "intorno, fuori da questa misura: il foro nel muro è più largo "
+            "di due profili e più alto di uno."))
     sill = spin(current["sill"], -10.0, 100.0)
     model = QComboBox()
     for key, label in MODELS:
@@ -956,6 +989,8 @@ def ask_params(parent, current: dict, title: str, ok_text: str,
         lvl = piani.level_combo(scene, piani.active_id(scene))
         form.addRow(tr("Piano (muri su cui posare)"), lvl)
     form.addRow(tr("Modello"), model)
+    form.addRow(tr("Larghezza porta, senza telaio (m)"), dW)
+    form.addRow(tr("Altezza porta, senza telaio (m)"), dH)
     form.addRow(tr("Larghezza totale (W) (m)"), W)
     form.addRow(tr("Altezza totale (H) (m)"), H)
     form.addRow(tr("Altezza da terra (h) (m)"), sill)
@@ -1070,6 +1105,22 @@ def ask_params(parent, current: dict, title: str, ok_text: str,
         if leaves.currentData() == 3:
             set_quiet(a2, max(0.2, W.value() - 2 * fw.value() - a1.value()))
 
+    def around():
+        n = 1 if leaves.currentData() == 1 else 2
+        return _around(model.currentData(), n, fw.value())
+
+    def slab_from_total(*_a) -> None:
+        aw, ah_ = around()
+        set_quiet(dW, W.value() - aw)
+        set_quiet(dH, H.value() - ah_)
+
+    def total_from_slab(*_a) -> None:
+        # the frame, the leaves or the model changed, or a door size was
+        # typed: the door keeps its size and the hole in the wall follows
+        aw, ah_ = around()
+        W.setValue(dW.value() + aw)
+        H.setValue(dH.value() + ah_)
+
     a1.valueChanged.connect(on_ante)
     a2.valueChanged.connect(on_ante)
     fw.valueChanged.connect(on_ante)
@@ -1081,6 +1132,13 @@ def ask_params(parent, current: dict, title: str, ok_text: str,
     slide.toggled.connect(on_slide)
     on_slide()
     on_model()
+    slab_from_total()
+    for s in (W, H, a1, a2):
+        s.valueChanged.connect(slab_from_total)
+    for s in (dW, dH, fw):
+        s.valueChanged.connect(total_from_slab)
+    for c in (leaves, model):
+        c.currentIndexChanged.connect(total_from_slab)
     box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
     box.button(QDialogButtonBox.Ok).setText(ok_text)
     box.accepted.connect(dlg.accept)
@@ -1232,7 +1290,7 @@ class PortaTool(Tool):
         fm = painter.fontMetrics()
         p = _params()
         lines = [
-            tr("Porta {0} × {1} · {2} {3}").format(fmt_len(p['W']), fmt_len(p['H']), int(p['leaves']), (tr('anta') if p['leaves'] == 1 else tr('ante')))
+            tr("Porta {0} × {1} · {2} {3}").format(*(fmt_len(v) for v in door_size(p)), int(p['leaves']), (tr('anta') if p['leaves'] == 1 else tr('ante')))
             + ((tr(" (asimmetriche: {0} + {1})").format(
                 fmt_len(p['w1']), fmt_len(p['W'] - 2 * p['fw'] - p['w1'])))
                if p.get('asym') else ""),
@@ -1350,6 +1408,8 @@ def _outliner_kind(group):
             "props": [(tr("Modello"), names.get(d.get("model", "porta"), "Porta")),
                       (tr("Larghezza"), fmt_len(d["W"])),
                       (tr("Altezza"), fmt_len(d["H"])),
+                      (tr("Porta senza telaio"),
+                       " × ".join(fmt_len(v) for v in door_size(d))),
                       (tr("Da terra"), fmt_len(d["sill"])),
                       (tr("Ante"), str(int(d["leaves"])))]
             + ([(tr("Anta 1"), fmt_len(d["w1"])),
