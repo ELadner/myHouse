@@ -83,3 +83,39 @@ def test_dialog_two_leaves_and_asymmetric_follow(door_dialog):
     assert seen["two"] == pytest.approx((0.774, 0.774 + 0.12 + 0.012))
     w, dw = seen["asym"]
     assert dw == pytest.approx(w - 0.12 - 0.012)
+
+
+def bbox_x(mesh):
+    xs = [v.position.x() for v in mesh.vertices]
+    return min(xs), max(xs)
+
+
+def test_bifold_panels_and_knobs(myhouse):
+    from myhouse import porte
+    base = dict(porte._params_geom(), W=1.60, H=2.10, fw=0.02, fd=0.12, sw=0.035, model="bifold",
+                o=[0., 0., 0.], u=[1., 0.], flip=False)
+    for leaves, panels, knobs in ((1, 2, 1), (2, 4, 2)):
+        d = dict(base, leaves=leaves)
+        assert porte._panels("bifold", leaves) == panels and porte.validate(d) is None
+        frame, leaf, glass, hw = porte.door_meshes_all(d)
+        assert len(leaf.faces) == 6 * panels                 # one box each
+        assert len(hw.faces) == 12 * knobs                   # stem and knob
+        lo, hi = bbox_x(leaf)
+        assert (lo, hi) == pytest.approx((0.02 + 0.003, 1.60 - 0.02 - 0.003))
+    assert not porte.can_open(base) and porte.arch_rise(dict(base, arch="full")) == 0.0
+    assert porte.door_size(dict(base, leaves=2)) == pytest.approx((1.60 - 0.04 - 0.024, 2.10 - 0.026))
+
+
+def test_dialog_choosing_bifold_proposes_a_closet_front(door_dialog):
+    seen = {}
+
+    def play(r):
+        model, leaves = r[label("Modello")], r[label(LEAVES)]
+        model.setCurrentIndex(model.findData("bifold"))
+        seen["leaves"] = (leaves.currentData(), leaves.itemText(1), leaves.isEnabled())
+        seen["thick"] = r[label("Spessore anta (a) (m)")].value()
+        seen["arch"] = r[label("Forma della parte alta")].isEnabled()
+    p = door_dialog(play)
+    assert seen["leaves"] == (2, "Dual bi-fold (4 panels)", True)
+    assert seen["thick"] == pytest.approx(0.035) and seen["arch"] is False
+    assert (p["model"], p["leaves"], p["arch"], p["asym"], p["slide"]) == ("bifold", 2, "none", False, False)
