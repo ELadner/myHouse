@@ -3969,4 +3969,26 @@ TR = {
         "Makes a MyHouse wall longer or shorter from one end.",
     "Taglia in due un muro MyHouse nel punto del clic.":
         "Cuts a MyHouse wall in two at the point you click.",
+    "Tetto 1/3 contorno: clic per i vertici · W = contorno dei muri · C/Invio = chiudi · P = chiudi e calcola il tetto · Backspace = annulla · Esc = esci":
+        "Roof 1/3 outline: click the vertices · W = outline of the walls · C/Enter = close · P = close and compute the roof · Backspace = undo · Esc = exit",
+    "Tetto 2/3 linee interne (colmo, displuvi): due clic = una linea, si aggancia a punti e linee · P = calcola il tetto in automatico · Invio = continua · Backspace = annulla":
+        "Roof 2/3 inner lines (ridge, hips): two clicks = one line, snaps to points and lines · P = compute the roof automatically · Enter = continue · Backspace = undo",
+    "Tetto automatico: clic su un lato del contorno per passare da padiglione a timpano · P = pendenza · Invio = crea tetto · Backspace = indietro":
+        "Automatic roof: click an edge of the outline to switch it between hip and gable · P = pitch · Enter = create roof · Backspace = back",
+    "Pendenza: alzata su 12 (8 oppure 8/12), gradi (33.7°) o percentuale (67%)":
+        "Pitch: rise in 12 (8 or 8/12), degrees (33.7°) or percent (67%)",
+    "Pendenza: gradi (30), percentuale (58%) o alzata/base (1/2)":
+        "Pitch: degrees (30), percent (58%) or rise/run (1/2)",
+    "Pendenza del tetto":
+        "Roof pitch",
+    "Pendenza non riconosciuta: scrivi 8/12, 30° oppure 58%":
+        "Pitch not understood: type 8/12, 30° or 58%",
+    "Questo tetto non si può calcolare: un timpano deve stare tra due spigoli esterni, e almeno un lato deve avere la falda":
+        "This roof cannot be computed: a gable end must lie between two outside corners, and at least one edge must slope",
+    "Clic su un lato del contorno":
+        "Click an edge of the outline",
+    "Nessun muro trovato per il contorno":
+        "No walls found for the outline",
+    "T":
+        "G",
 }
