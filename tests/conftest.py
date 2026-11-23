@@ -40,14 +40,24 @@ def myhouse():
     return importlib.import_module("myhouse")
 
 
+_WIN = []
+
+
+def _window():
+    """The one IngeTrazo main window of the run, with myHouse set up in it."""
+    if not _WIN:
+        import myhouse
+        from views.extension_api import ExtensionApp
+        from views.main_window import MainWindow
+        win = MainWindow()
+        myhouse.setup(ExtensionApp(win, "myhouse"))
+        _WIN.append(win)
+    return _WIN[0]
+
+
 @pytest.fixture(scope="session")
 def window(myhouse):
-    """One IngeTrazo main window with myHouse set up in it."""
-    from views.extension_api import ExtensionApp
-    from views.main_window import MainWindow
-    win = MainWindow()
-    myhouse.setup(ExtensionApp(win, "myhouse"))
-    return win
+    return _window()
 
 
 @pytest.fixture
