@@ -4055,4 +4055,6 @@ TR = {
         "Mullion channel is deeper than the sash profile is wide",
     "Montante":
         "Mullion",
+    "centro":
+        "middle",
 }

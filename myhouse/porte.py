@@ -150,6 +150,7 @@ class _Settings:
     slide = False
     open = 0.0
     flip = False
+    mid = False             # held by the middle (Space: left, middle, right)
     rev = False             # reversed while placing: handle on the other side
     level = None
     col_frame = list(DEFAULT_PAINT["frame"])
@@ -1204,7 +1205,7 @@ def reversed_place(d: dict) -> dict:
 def place_at(scene, world, p: dict) -> dict:
     """Where the door being placed goes: on the wall under the cursor, on
     the chosen edge, reversed if R was pressed."""
-    place = finestre.placement(scene, world, _Settings.flip, _Settings.level)
+    place = finestre.place_edge(scene, world, _Settings, p["W"])
     if _Settings.rev:
         place.update(reversed_place({**p, **place}))
     return place
@@ -1308,9 +1309,9 @@ class PortaTool(Tool):
             self._exit(viewport)
             return True
         if key == Qt.Key_Space:
-            _Settings.flip = not _Settings.flip
+            finestre.next_edge(_Settings)
             viewport.flash_status(
-                tr("Spigolo ") + (tr("destro") if _Settings.flip else tr("sinistro")),
+                tr("Spigolo ") + finestre.edge_word(_Settings),
                 2000)
             viewport.update()
             return True
@@ -1324,7 +1325,7 @@ class PortaTool(Tool):
         return False
 
     def status_clause(self) -> str:
-        return (tr("Spigolo {0} (Spazio ribalta) · Esc / tasto destro = esci").format((tr('destro') if _Settings.flip else tr('sinistro')))
+        return (tr("Spigolo {0} (Spazio ribalta) · Esc / tasto destro = esci").format(finestre.edge_word(_Settings))
                 + tr(" · R = maniglia dall'altro lato"))
 
     def rubber_band_lines(self):
@@ -1360,7 +1361,7 @@ class PortaTool(Tool):
             tr("Da terra: {0} · telaio {1} × {2}").format(fmt_len(p['sill']), fmt_len(p['fw']), fmt_len(p['fd'])),
             (tr("Vuoto: ") + dict(ARCH_KINDS).get(p.get("arch", "none"), "")
              + (tr(" · freccia {0}").format(fmt_len(arch_rise(p))) if arch_rise(p) else "")),
-            tr("Spigolo: {0}  (Spazio ribalta)").format((tr('DESTRO') if _Settings.flip else tr('SINISTRO')))
+            tr("Spigolo: {0}  (Spazio ribalta)").format(finestre.edge_word(_Settings, True))
             + "  ·  " + (tr("RIBALTATA (R)") if _Settings.rev else tr("non ribaltata (R)")),
             tr("Esc / tasto destro = esci"),
         ]

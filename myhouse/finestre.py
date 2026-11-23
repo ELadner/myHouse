@@ -108,6 +108,7 @@ class _Settings:
     mf2 = MULLION_DEFAULT["mf2"]
     mc = MULLION_DEFAULT["mc"]
     flip = False
+    mid = False             # held by the middle (Space: left, middle, right)
     level = None
     shut = ""
     shv = 0
@@ -1138,6 +1139,37 @@ def placement(scene, world: QVector3D, flip: bool, level_id=None) -> dict:
     return out
 
 
+def next_edge(settings) -> None:
+    """Space while placing: the cursor holds the left edge, then the middle,
+    then the right edge (the unit flipped, as before), then the left again."""
+    if settings.mid:
+        settings.mid, settings.flip = False, True
+    elif settings.flip:
+        settings.flip = False
+    else:
+        settings.mid = True
+
+
+def edge_word(settings, caps: bool = False) -> str:
+    """Which part the cursor holds, as the status texts say it."""
+    if settings.mid and not settings.flip:
+        return tr("CENTRO") if caps else tr("centro")
+    if settings.flip:
+        return tr("DESTRO") if caps else tr("destro")
+    return tr("SINISTRO") if caps else tr("sinistro")
+
+
+def place_edge(scene, world: QVector3D, settings, width: float) -> dict:
+    """placement() for the edge chosen with Space: held by the middle, the
+    unit is moved back by half its width along the wall."""
+    place = placement(scene, world, settings.flip, settings.level)
+    if settings.mid and not settings.flip:
+        (ux, uy), _n = _axes(place)
+        ox, oy, oz = place["o"]
+        place["o"] = [ox - ux * width / 2, oy - uy * width / 2, oz]
+    return place
+
+
 def _full_pose(g) -> QMatrix4x4:
     gx = getattr(g, "xform", None)
     m = QMatrix4x4(gx) if gx is not None else QMatrix4x4()
@@ -1878,7 +1910,7 @@ class FinestraTool(Tool):
         world = QVector3D(ctx.world)
         self.hover = world
         p = _params()
-        place = placement(scene, world, _Settings.flip, _Settings.level)
+        place = place_edge(scene, world, _Settings, p["W"])
 
         def mutate(sc):
             make_window(sc, p, place)
@@ -1913,16 +1945,16 @@ class FinestraTool(Tool):
             self._exit(viewport)
             return True
         if key == Qt.Key_Space:
-            _Settings.flip = not _Settings.flip
+            next_edge(_Settings)
             viewport.flash_status(
-                tr("Spigolo ") + (tr("destro") if _Settings.flip else tr("sinistro")),
+                tr("Spigolo ") + edge_word(_Settings),
                 2000)
             viewport.update()
             return True
         return False
 
     def status_clause(self) -> str:
-        return (tr("Spigolo {0} (Spazio ribalta) · Esc / tasto destro = esci").format((tr('destro') if _Settings.flip else tr('sinistro'))))
+        return (tr("Spigolo {0} (Spazio ribalta) · Esc / tasto destro = esci").format(edge_word(_Settings)))
 
     def rubber_band_lines(self):
         if self.hover is None:
@@ -1931,8 +1963,7 @@ class FinestraTool(Tool):
         if scene is None:
             return []
         d = _params()
-        d.update(placement(scene, self.hover, _Settings.flip,
-                           _Settings.level))
+        d.update(place_edge(scene, self.hover, _Settings, d["W"]))
         return outline_lines(d)
 
     def draw_overlay(self, viewport, painter) -> None:
@@ -1953,7 +1984,7 @@ class FinestraTool(Tool):
         lines = [
             tr("Finestra {0} × {1} · {2} {3}").format(fmt_len(p['W']), fmt_len(p['H']), int(p['leaves']), (tr('anta') if p['leaves'] == 1 else tr('ante'))),
             tr("Da terra: {0} · telaio {1} × {2}").format(fmt_len(p['sill']), fmt_len(p['fw']), fmt_len(p['fd'])),
-            tr("Spigolo: {0}  (Spazio ribalta)").format((tr('DESTRO') if _Settings.flip else tr('SINISTRO'))),
+            tr("Spigolo: {0}  (Spazio ribalta)").format(edge_word(_Settings, True)),
             tr("Esc / tasto destro = esci"),
         ]
         w = max(fm.horizontalAdvance(t) for t in lines) + 16
