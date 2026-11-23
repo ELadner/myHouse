@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from ._lingua import tr
+from ._imperial import FT, IN, LengthSpin, ask_length, dflt, imperial
 from ._scroll import scroll_form
 
 import copy
@@ -50,10 +51,10 @@ _TRAVI_DEFAULT = {"on": False, "shape": "rect", "w": 0.12, "h": 0.20,
 
 
 class _Settings:
-    thickness = 0.20
-    z_base = 3.0
+    thickness = dflt(8 * IN, 0.20)
+    z_base = dflt(8 * FT, 3.0)
     offset = 0.5
-    pitch = 30.0
+    pitch = dflt(math.degrees(math.atan2(6, 12)), 30.0)
     name = tr("Tetto")
     level = None
     ortho = True
@@ -880,7 +881,7 @@ def build_roof(scene, d, name) -> None:
 
 
 def _spin(value, lo, hi):
-    s = QDoubleSpinBox()
+    s = LengthSpin()
     s.setDecimals(3)
     s.setRange(lo, hi)
     s.setValue(value)
@@ -1130,12 +1131,8 @@ def ask_settings(parent, scene=None, editing: bool = False, groups=None) -> bool
 
 
 def _rise_in_12() -> bool:
-    """Whether a pitch reads as a rise in 12: in feet-and-inches models."""
-    try:
-        from core.units import model_unit
-        return model_unit() in ("in", "ft", "ft-in", "in-frac", "ft-in-frac")
-    except Exception:
-        return False
+    """Whether a pitch reads as a rise in 12: when lengths are in feet and inches."""
+    return imperial()
 
 
 def pitch_text(deg: float) -> str:
@@ -1566,10 +1563,10 @@ class TettoTool(Tool):
             if near is None:
                 vp.flash_status(tr("Clicca su un quadratino rosso"), 3000)
                 return
-            val, ok = QInputDialog.getDouble(
+            val, ok = ask_length(
                 vp.window(), tr("Quota punto"),
                 tr("Quota rispetto al punto più basso (m)"),
-                self._rel(near), -100.0, 1000.0, 3)
+                self._rel(near), -100.0, 1000.0)
             if ok:
                 self.heights[self._key(near)] = val
         vp.update()
@@ -1670,7 +1667,7 @@ class TettoTool(Tool):
             if self.phase == "heights" and (abs(rel) > 1e-9 or c == hot):
                 painter.setPen(QPen(QColor(20, 20, 20)))
                 painter.drawText(QPointF(pc[0] + r + 4, pc[1] - r),
-                                 f"{rel:+.2f} m")
+                                 ("-" if rel < 0 else "+") + fmt_len(abs(rel)))
         if self.phase == "lines" and self.hover_point is not None:
             q = self._snap(self.hover_point.x(), self.hover_point.y(),
                            commit=False)
@@ -1687,7 +1684,7 @@ class TettoTool(Tool):
     def _draw_auto(self, viewport, painter) -> None:
         """A dot on every edge of the outline (blue = gable end) and the
         rise at the points that are above the eaves."""
-        from core.units import fmt_len
+        from ._imperial import fmt_len
         painter.setRenderHint(painter.RenderHint.Antialiasing)
         pts, gables = self.auto["pts"], self.auto["gables"]
         base = self._base()
@@ -1957,7 +1954,7 @@ def _beam_props(d):
     tv = d.get("travi")
     if not tv:
         return []
-    from core.units import fmt_len
+    from ._imperial import fmt_len
     sec = (f"Ø {fmt_len(tv['w'])}" if tv.get("shape") == "round"
            else f"{fmt_len(tv['w'])} × {fmt_len(tv['h'])}")
     if tv.get("n") is not None:
@@ -1972,7 +1969,7 @@ def _outliner_kind(group):
     d = roof_data(group)
     if d is None:
         return None
-    from core.units import fmt_len
+    from ._imperial import fmt_len
     return {"type": tr("Tetto"),
             "props": [(tr("Spessore"), fmt_len(d["th"])),
                       (tr("Gronda"), fmt_len(d["base"])),

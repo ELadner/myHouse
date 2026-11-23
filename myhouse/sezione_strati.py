@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from ._scroll import fit_dialog
 from ._lingua import tr
+from ._imperial import LengthSpin
 
 import copy
 import math
@@ -1760,19 +1761,19 @@ class _StratiDialog(QDialog):
         st = norm_strato(st)
         self.table.insertRow(r)
         self.table.setItem(r, 0, QTableWidgetItem(str(st.get("nome", ""))))
-        sp = QDoubleSpinBox()
+        sp = LengthSpin()
         sp.setDecimals(2)
         sp.setRange(0.1, 500.0)
         sp.setSingleStep(0.5)
         sp.setValue(float(st.get("sp", 0.05)) * 100.0)
         sp.valueChanged.connect(self._upd)
         self.table.setCellWidget(r, 1, sp)
-        ang = QDoubleSpinBox()
+        ang = LengthSpin()
         ang.setDecimals(1)
         ang.setRange(0.0, 180.0)
         ang.setSingleStep(5.0)
         ang.setValue(st["ang"])
-        scl = QDoubleSpinBox()
+        scl = LengthSpin()
         scl.setDecimals(2)
         scl.setRange(0.1, 20.0)
         scl.setSingleStep(0.25)

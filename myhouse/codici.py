@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from ._scroll import fit_dialog
 from ._lingua import tr
+from ._imperial import LengthSpin
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
@@ -45,7 +46,7 @@ class CodiciDialog(QDialog):
         from PySide6.QtWidgets import QDoubleSpinBox, QLabel
         size_row = QHBoxLayout()
         size_row.addWidget(QLabel(tr("Dimensione testo etichette ID (m)")))
-        self.size_sp = QDoubleSpinBox()
+        self.size_sp = LengthSpin()
         self.size_sp.setDecimals(3)
         self.size_sp.setRange(0.01, 20.0)
         self.size_sp.setSingleStep(0.05)

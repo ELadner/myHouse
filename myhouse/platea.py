@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from ._lingua import tr
+from ._imperial import LengthSpin
 from ._scroll import scroll_form
 
 import math
@@ -15,7 +16,7 @@ from PySide6.QtWidgets import (
 
 from core import bim
 from . import _ifc
-from core.units import fmt_len
+from ._imperial import fmt_len
 from tools.base import Tool, ToolContext
 
 from . import _tipi, muri, piani
@@ -171,7 +172,7 @@ def rebuild_platea(group, p: dict, name=None, extra=None) -> None:
 
 
 def _spin(value, lo, hi):
-    s = QDoubleSpinBox()
+    s = LengthSpin()
     s.setDecimals(3)
     s.setRange(lo, hi)
     s.setValue(value)

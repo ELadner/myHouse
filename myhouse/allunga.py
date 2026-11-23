@@ -22,7 +22,7 @@ from PySide6.QtGui import QVector3D
 from tools.base import Tool, ToolContext
 
 from . import finestre, muri
-from core.units import fmt_len as fmt
+from ._imperial import fmt_len as fmt
 
 from ._lingua import tr
 

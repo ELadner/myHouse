@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from ._lingua import tr
+from ._imperial import FT, IN, LengthSpin, dflt
 from ._scroll import scroll_form
 
 import copy
@@ -19,7 +20,7 @@ from PySide6.QtWidgets import (
 from core import bim
 from . import _ifc
 from core.history import Command
-from core.units import fmt_len
+from ._imperial import fmt_len
 from tools.base import Tool, ToolContext
 
 from . import _codici, _tipi, muri, piani
@@ -83,13 +84,13 @@ CURT_ABOVE = 0.20
 
 
 class _Settings:
-    W = 1.20
-    H = 1.40
-    sill = 0.90
+    W = dflt(32 * IN, 1.20)
+    H = dflt(48 * IN, 1.40)
+    sill = dflt(36 * IN, 0.90)
     leaves = 1
-    fw = 0.06
-    fd = 0.07
-    sw = 0.05
+    fw = dflt(2.5 * IN, 0.06)
+    fd = dflt(2.75 * IN, 0.07)
+    sw = dflt(2.0 * IN, 0.05)
     sub = None
     nv = 0
     nh = 0
@@ -1472,7 +1473,7 @@ def _disegno_spalletta(p):
 
 
 def _spin(value, lo, hi):
-    s = QDoubleSpinBox()
+    s = LengthSpin()
     s.setDecimals(3)
     s.setRange(lo, hi)
     s.setValue(value)

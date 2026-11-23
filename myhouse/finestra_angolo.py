@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from ._scroll import fit_dialog
 from ._lingua import tr
+from ._imperial import LengthSpin
 
 import math
 import uuid
@@ -14,7 +15,7 @@ from PySide6.QtWidgets import (
     QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout, QLabel, QVBoxLayout,
 )
 
-from core.units import fmt_len
+from ._imperial import fmt_len
 from tools.base import ToolContext
 from PySide6.QtGui import QVector3D
 
@@ -217,11 +218,11 @@ def _ask_extra(parent) -> bool:
         "La lunghezza impostata prima vale per il lato 1.\n"
         "L'altezza e l'altezza da terra sono uguali per i due lati.")))
     form = QFormLayout()
-    w2 = QDoubleSpinBox()
+    w2 = LengthSpin()
     w2.setDecimals(3)
     w2.setRange(0.2, 20.0)
     w2.setValue(_Ang.W2)
-    gap = QDoubleSpinBox()
+    gap = LengthSpin()
     gap.setDecimals(3)
     gap.setRange(0.0, 5.0)
     gap.setValue(_Ang.gap)

@@ -18,7 +18,7 @@ from core import bim
 from tools.base import Tool, ToolContext
 
 from . import finestre, muri
-from core.units import fmt_len as fmt
+from ._imperial import fmt_len as fmt
 
 from ._lingua import tr
 from .allunga import MIN_LEN, _pose_key, _same, plain, wall_group

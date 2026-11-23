@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from ._lingua import tr
+from ._imperial import LengthSpin
 from ._scroll import scroll_form
 
 import math
@@ -503,7 +504,7 @@ def pick(scene, x, y, tol=0.3):
 
 
 def _spin(value, lo, hi):
-    s = QDoubleSpinBox()
+    s = LengthSpin()
     s.setDecimals(3)
     s.setRange(lo, hi)
     s.setValue(value)

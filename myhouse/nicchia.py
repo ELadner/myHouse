@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QComboBox, QDialog, QDialogButtonBox, QFormLayout, QSpinBox, QVBoxLayout,
 )
 
-from core.units import fmt_len
+from ._imperial import fmt_len
 from tools.base import Tool, ToolContext
 
 from . import muri

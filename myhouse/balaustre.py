@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from ._lingua import tr
+from ._imperial import FT, IN, LengthSpin, dflt
 from ._scroll import scroll_form
 
 import copy
@@ -74,15 +75,15 @@ def add_railing_along(scene, pts, style, name=None, **over):
 
 
 class _Settings:
-    h = 1.00
-    gap = 0.10
-    t = 0.02
-    hr = 0.05
-    bot = 0.05
-    post = 1.00
+    h = dflt(36 * IN, 1.00)
+    gap = dflt(4 * IN, 0.10)
+    t = dflt(0.75 * IN, 0.02)
+    hr = dflt(2 * IN, 0.05)
+    bot = dflt(2 * IN, 0.05)
+    post = dflt(4 * FT, 1.00)
     round_ = True
     style = "vert"
-    vt = 0.012
+    vt = dflt(0.5 * IN, 0.012)
     name = tr("Balaustra")
     ortho = True
     level = None
@@ -596,7 +597,7 @@ def build_railing(scene, d, name) -> None:
 
 
 def _spin(value, lo, hi):
-    s = QDoubleSpinBox()
+    s = LengthSpin()
     s.setDecimals(3)
     s.setRange(lo, hi)
     s.setValue(value)
@@ -1129,7 +1130,7 @@ def _outliner_kind(group):
     d = railing_data(group)
     if d is None:
         return None
-    from core.units import fmt_len
+    from ._imperial import fmt_len
     length = 0.0
     for seg in segments(d):
         a, b = seg["a"], seg["b"]

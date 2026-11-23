@@ -9,7 +9,8 @@ from PySide6.QtCore import QEvent, QObject, QPointF, QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QPainter, QPen, QPolygonF, QVector3D
 from PySide6.QtWidgets import QLineEdit, QWidget
 
-from core.units import fmt_len
+from . import _imperial
+from ._imperial import fmt_len
 
 from . import muri
 
@@ -586,7 +587,7 @@ class _Quote:
             cur = ref if lato == "INT" else out
         self.edit = st
         f = _Edit(self.vp, self)
-        f.setText("%.3f" % cur)
+        f.setText(_imperial.fmt(cur) if _imperial.imperial() else "%.3f" % cur)
         f.setFixedWidth(max(90, int(rect.width()) + 20))
         f.move(int(rect.center().x() - f.width() / 2),
                int(rect.center().y() - f.height() / 2))
@@ -597,7 +598,9 @@ class _Quote:
         f.selectAll()
         self.field = f
         self.vp.flash_status(
-            tr("Nuovo valore (m) · Invio = conferma · Esc = annulla")
+            tr("Nuovo valore (m) · Invio = conferma · Esc = annulla").replace(
+                _imperial.METRES_MARK,
+                _imperial.IMPERIAL_MARK if _imperial.imperial() else _imperial.METRES_MARK)
             + ("" if lato.startswith("D_") else tr(" · Tab = cambia estremo")),
             8000)
         self.overlay.update()
@@ -622,10 +625,8 @@ class _Quote:
         ed = self.edit
         if ed is None or self.field is None:
             return
-        txt = self.field.text().strip().replace(",", ".")
-        try:
-            value = float(txt)
-        except ValueError:
+        value = _imperial.parse(self.field.text())
+        if value is None:
             self.vp.flash_status(tr("Digita un numero e premi Invio"), 3000)
             self.cancel_edit()
             return

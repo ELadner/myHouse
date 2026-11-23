@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from ._lingua import tr
+from ._imperial import LengthSpin
 from ._scroll import scroll_form
 
 import copy
@@ -348,7 +349,7 @@ def _clean_paint(res: dict) -> dict:
 
 
 def _spin(value, lo, hi):
-    s = QDoubleSpinBox()
+    s = LengthSpin()
     s.setDecimals(3)
     s.setRange(lo, hi)
     s.setValue(value)
@@ -822,7 +823,7 @@ def _outliner_kind(group):
     d = roof_data(group)
     if d is None:
         return None
-    from core.units import fmt_len
+    from ._imperial import fmt_len
     return {"type": tr("Tetto a profilo"),
             "props": [(tr("Spessore"), fmt_len(d["th"])),
                       (tr("Lunghezza"), fmt_len(d["len"])),

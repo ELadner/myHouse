@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from ._lingua import tr
+from ._imperial import FT, IN, LengthSpin, ask_length, dflt
 from ._scroll import scroll_form
 
 import math
@@ -28,11 +29,11 @@ SNAP = 0.40
 
 class _Settings:
     shape = "rect"
-    w = 0.20
+    w = dflt(6 * IN, 0.20)
     tf = 0.02
     tw = 0.012
-    h = 0.20
-    z0 = 3.00
+    h = dflt(12 * IN, 0.20)
+    z0 = dflt(8 * FT, 3.00)
     name = tr("Trave")
     level = None
     use_z = False
@@ -271,7 +272,7 @@ def _z_from_points(z_start: float, z_end: float):
 
 
 def _spin(value, lo, hi):
-    s = QDoubleSpinBox()
+    s = LengthSpin()
     s.setDecimals(3)
     s.setRange(lo, hi)
     s.setValue(value)
@@ -605,10 +606,10 @@ class TraveTool(Tool):
                 self._exit(vp)
                 edit_section(vp, [g])
                 return
-            val, ok = QInputDialog.getDouble(
+            val, ok = ask_length(
                 vp.window(), tr("Quota del lato"),
                 tr("Altezza da terra di questo lato (m)"),
-                self.d[k], -100.0, 1000.0, 3)
+                self.d[k], -100.0, 1000.0)
             if ok:
                 self.d[k] = val
             vp.update()
@@ -809,7 +810,7 @@ def _outliner_kind(group):
     d = beam_data(group)
     if d is None:
         return None
-    from core.units import fmt_len
+    from ._imperial import fmt_len
     L = math.hypot(d["b"][0] - d["a"][0], d["b"][1] - d["a"][1])
     return {"type": tr("Trave"),
             "props": [(tr("Sezione"),

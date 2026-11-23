@@ -3991,4 +3991,20 @@ TR = {
         "No walls found for the outline",
     "T":
         "G",
+    "Unità di myHouse":
+        "myHouse units",
+    "Segui le unità del documento":
+        "Follow the document's units",
+    "Piedi e pollici":
+        "Feet and inches",
+    "Metrico":
+        "Metric",
+    "Lunghezze nelle finestre di myHouse":
+        "Lengths in the myHouse dialogs",
+    "Il modello non cambia: cambia solo come le misure vengono mostrate e digitate. Le misure proposte da ogni strumento per un nuovo oggetto passano da quelle americane a quelle metriche al prossimo avvio di IngeTrazo.":
+        "The model itself does not change: this is only how sizes are shown and typed. The sizes each tool proposes for a new object switch between US and metric ones the next time IngeTrazo starts.",
+    "Unità…":
+        "Units…",
+    "Piedi e pollici o metrico nelle finestre di myHouse":
+        "Feet and inches or metric in the myHouse dialogs",
 }

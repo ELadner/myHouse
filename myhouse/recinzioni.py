@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from ._lingua import tr
+from ._imperial import FT, IN, dflt
 from ._scroll import scroll_form
 
 import copy
@@ -50,19 +51,19 @@ def _norm(d):
 
 class _S:
     kind = "doghe"
-    h = 1.80
-    post = 2.00
-    sz = 0.08
-    bot = 0.05
-    dh = 0.14
-    dg = 0.02
-    dt = 0.025
-    gap = 0.12
-    bt = 0.02
-    spear = 0.10
-    rl = 0.20
-    ru = 0.20
-    rt = 0.03
+    h = dflt(6 * FT, 1.80)
+    post = dflt(8 * FT, 2.00)
+    sz = dflt(3.5 * IN, 0.08)
+    bot = dflt(2 * IN, 0.05)
+    dh = dflt(5.5 * IN, 0.14)
+    dg = dflt(0.75 * IN, 0.02)
+    dt = dflt(1 * IN, 0.025)
+    gap = dflt(4 * IN, 0.12)
+    bt = dflt(0.75 * IN, 0.02)
+    spear = dflt(4 * IN, 0.10)
+    rl = dflt(8 * IN, 0.20)
+    ru = dflt(8 * IN, 0.20)
+    rt = dflt(1.25 * IN, 0.03)
     wall = False
     mh = 0.60
     mt = 0.20
@@ -733,7 +734,7 @@ def _outliner_kind(group):
     if d is None:
         return None
     d = _norm(d)
-    from core.units import fmt_len
+    from ._imperial import fmt_len
     length = 0.0
     for seg in bal.segments(d):
         a, b = seg["a"], seg["b"]

@@ -6,7 +6,7 @@ from ._lingua import tr
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QIcon, QMatrix4x4, QPainter, QPen, QPixmap, QVector3D
 
-from core.units import fmt_len
+from ._imperial import fmt_len
 from tools.base import Tool, ToolContext
 
 from .muri import MuriCommand
