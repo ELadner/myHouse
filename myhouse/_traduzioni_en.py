@@ -4077,4 +4077,30 @@ TR = {
         "US standard sizes: type",
     "Misure standard USA: misura":
         "US standard sizes: size",
+    "Giunto tra muri":
+        "Wall joint",
+    "clic su un muro vicino a un angolo: quello passa, l'altro si attesta contro di esso (altro clic: al contrario, poi a sghembo)":
+        "click a wall near a corner: it runs through, the other butts against it (click again: the other way, then mitre)",
+    "Giunto di testa o a sghembo in un angolo: clic sul muro passante; altro clic per il contrario, poi a sghembo":
+        "Butt or mitre a corner: click the wall that runs through; click again for the other way, then mitre",
+    "giunto sconosciuto":
+        "unknown joint",
+    "Clic su un muro creato con lo strumento Muri, vicino a un angolo":
+        "Click a wall made with the Walls tool, near a corner",
+    "Giunto di testa: {name} è passante · clic di nuovo per cambiare":
+        "Butt joint: {name} runs through · click again to change",
+    "Giunto tra muri (di testa / a sghembo)…":
+        "Wall joint (butt / mitre)…",
+    "Giunto di testa: {name} si attesta contro l'altro muro · clic di nuovo per cambiare":
+        "Butt joint: {name} butts against the other wall · click again to change",
+    "Angolo a sghembo · clic di nuovo per cambiare":
+        "Mitred corner · click again to change",
+    "un muro poligonale o a spessore variabile non ha giunti":
+        "a polygon wall or one of varying thickness has no joints",
+    "questa estremità non incontra un altro muro in un angolo":
+        "this end does not meet another wall in a corner",
+    "Giunto tra muri: questa estremità non incontra un altro muro in un angolo (i muri disegnati separatamente si uniscono prima con Raccordo muri)":
+        "Wall joint: this end does not meet another wall in a corner (walls drawn separately are joined first with Wall joining)",
+    "Cambia un angolo tra giunto a sghembo e di testa: il muro su cui fai clic è passante, un altro clic per il contrario.":
+        "Changes a corner between mitre and butt joint: the wall you click runs through, click again for the other way.",
 }
