@@ -3889,4 +3889,84 @@ TR = {
         "{0} columns created",
     "α = 0: bordi verticali":
         "α = 0: vertical edges",
+    "Adotta muro: {message}":
+        "Adopt wall: {message}",
+    "Adotta muro":
+        "Adopt wall",
+    "Trasforma i gruppi selezionati a forma di parallelepipedo in muri MyHouse, sul posto":
+        "Turn the selected box-shaped groups into MyHouse walls, in place",
+    "non c'è niente da misurare":
+        "nothing to measure",
+    "è piatto, non è un muro solido":
+        "it is flat, not a solid wall",
+    "la sua pianta non è un rettangolo":
+        "its plan is not a rectangle",
+    "Adotta muro: seleziona un gruppo che sia un muro semplice (prima raggruppa la geometria sciolta)":
+        "Adopt wall: select a group that is a plain wall (group loose geometry first)",
+    "muri adottati: {n}":
+        "{n} wall(s) adopted",
+    "non è un parallelepipedo pieno, adottato come pieno: {names}":
+        "not a full box, adopted as solid: {names}",
+    "lasciati com'erano: {names}":
+        "left as they were: {names}",
+    "Adotta come muro MyHouse":
+        "Adopt as MyHouse wall",
+    "Allunga muro":
+        "Stretch wall",
+    "Allunga o accorcia un muro: clic vicino a un'estremità, poi clic sulla nuova estremità o digita la nuova lunghezza":
+        "Make a wall longer or shorter: click near one end, then click the new end or type the new length",
+    "non è un muro MyHouse":
+        "this is not a MyHouse wall",
+    "il muro non avrebbe lunghezza":
+        "the wall would have no length",
+    "il muro non ha una direzione":
+        "the wall has no direction",
+    "Il muro ora è lungo {length}":
+        "Wall is now {length} long",
+    "clic su un'altra estremità di muro, oppure Esc":
+        "click another wall end, or Esc",
+    "clic sulla nuova estremità o digita la lunghezza · Esc = esci":
+        "click the new end or type the length · Esc = exit",
+    "clic su un muro vicino all'estremità da spostare · Esc = esci":
+        "click a wall near the end to move · Esc = exit",
+    "un muro collegato non avrebbe lunghezza":
+        "a joined wall would have no length",
+    "Allunga muro: clic su un muro vicino all'estremità da spostare":
+        "Stretch wall: click a wall near the end to move",
+    "Clic sulla nuova estremità, oppure digita la nuova lunghezza + Invio":
+        "Click the new end, or type the new length + Enter",
+    "Allunga muro: la nuova estremità deve restare dal lato del muro rispetto all'altra estremità":
+        "Stretch wall: the new end must stay on the wall's side of the other end",
+    "Allunga muro: {message}":
+        "Stretch wall: {message}",
+    "muri collegati che l'hanno seguito: {n}":
+        "{n} joined walls followed",
+    "Allunga estremità del muro…":
+        "Stretch wall end…",
+    "Clic su un muro creato con lo strumento Muri (o adottato)":
+        "Click a wall made with the Walls tool (or adopted)",
+    "Dividi muro":
+        "Split wall",
+    "clic sul punto del muro in cui tagliarlo":
+        "click the point on a wall where to cut it",
+    "{prompt} · Esc = esci":
+        "{prompt} · Esc = exit",
+    "Taglia un muro in due: clic sul punto del muro":
+        "Cut a wall in two: click the point on the wall",
+    "il taglio è all'estremità del muro":
+        "the cut is at the end of the wall",
+    "Muro tagliato in due: {a} e {b} · clic su un altro muro, oppure Esc":
+        "Wall cut in two: {a} and {b} · click another wall, or Esc",
+    "Dividi muro…":
+        "Split wall…",
+    "un muro poligonale o a spessore variabile non si può allungare":
+        "a polygon wall or one of varying thickness cannot be stretched",
+    "un muro collegato è poligonale o a spessore variabile":
+        "a joined wall is a polygon wall or of varying thickness",
+    "un muro poligonale o a spessore variabile non si può dividere":
+        "a polygon wall or one of varying thickness cannot be split",
+    "Allunga o accorcia un muro MyHouse da un'estremità.":
+        "Makes a MyHouse wall longer or shorter from one end.",
+    "Taglia in due un muro MyHouse nel punto del clic.":
+        "Cuts a MyHouse wall in two at the point you click.",
 }
