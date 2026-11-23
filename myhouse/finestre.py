@@ -36,6 +36,13 @@ WALL_KEY = "myhouse_muro"
 WALL_TOL = 0.15
 ORDER = 40
 DIV_KEYS = ("sub", "nv", "nh", "dv", "dh")
+# Mulled windows: with a web thickness > 0 the sashes are separate windows in
+# one frame, divided by a fixed mullion shaped like an "I" in plan: a web (mw)
+# between the windows and a flange on the front (mf1) and on the back (mf2),
+# each reaching mc past the web, so every window sits in a channel.
+MULLION_KEYS = ("mw", "mf1", "mf2", "mc")
+MULLION_DEFAULT = {"mw": 0.0, "mf1": dflt(0.5 * IN, 0.012),
+                   "mf2": dflt(0.5 * IN, 0.012), "mc": dflt(0.75 * IN, 0.02)}
 DIV_DEFAULT = {"sub": None, "nv": 0, "nh": 0, "dv": 0.03, "dh": 0.03}
 
 
@@ -96,6 +103,10 @@ class _Settings:
     nh = 0
     dv = 0.03
     dh = 0.03
+    mw = MULLION_DEFAULT["mw"]
+    mf1 = MULLION_DEFAULT["mf1"]
+    mf2 = MULLION_DEFAULT["mf2"]
+    mc = MULLION_DEFAULT["mc"]
     flip = False
     level = None
     shut = ""
@@ -142,8 +153,8 @@ def _params() -> dict:
     p = {"W": _Settings.W, "H": _Settings.H, "sill": _Settings.sill,
          "leaves": _Settings.leaves, "fw": _Settings.fw,
          "fd": _Settings.fd, "sw": _Settings.sw}
-    for k in (DIV_KEYS + SHUT_KEYS + CURT_KEYS + SILL_KEYS + TIPO_KEYS
-              + SPAL_KEYS):
+    for k in (DIV_KEYS + MULLION_KEYS + SHUT_KEYS + CURT_KEYS + SILL_KEYS
+              + TIPO_KEYS + SPAL_KEYS):
         p[k] = getattr(_Settings, k)
     p.update(settings_paint())
     if _Settings.hatch:
@@ -158,6 +169,8 @@ def _store(p: dict) -> None:
     _Settings.fd, _Settings.sw = p["fd"], p["sw"]
     for k in DIV_KEYS:
         setattr(_Settings, k, p.get(k, DIV_DEFAULT[k]))
+    for k in MULLION_KEYS:
+        setattr(_Settings, k, p.get(k, MULLION_DEFAULT[k]))
     for k in SHUT_KEYS:
         setattr(_Settings, k, p.get(k, SHUT_DEFAULT[k]))
     for k in CURT_KEYS:
@@ -174,15 +187,68 @@ def _store(p: dict) -> None:
     _Settings.tipo_id, _Settings.tipo_nome = p.get("tipo_id"), p.get("tipo_nome")
 
 
+def _mullion(p: dict) -> float:
+    """Web thickness of the mullion between two windows: 0 for a single
+    sash, for a sliding window and for windows saved before mullions."""
+    if p.get("tipo") == "sc" or int(p["leaves"]) < 2:
+        return 0.0
+    return max(0.0, float(p.get("mw") or 0.0))
+
+
+def _flanges(p: dict):
+    """(front flange thickness, back flange thickness, channel depth) of the
+    I-shaped mullion. A flange needs both a thickness and a channel depth."""
+    if not _mullion(p):
+        return 0.0, 0.0, 0.0
+    f1, f2, c = (max(0.0, float(p.get(k, MULLION_DEFAULT[k]) or 0.0))
+                 for k in MULLION_KEYS[1:])
+    return (f1, f2, c) if c > 0 else (0.0, 0.0, 0.0)
+
+
+def sash_width(p: dict) -> float:
+    """Width of each sash: what is left between the frame and the mullions."""
+    n = int(p["leaves"])
+    return (p["W"] - 2 * p["fw"] - (n - 1) * _mullion(p)) / n
+
+
+def mullion_profile(x0, x1, y0, y1, f1, f2, c):
+    """Plan outline of one mullion, counter-clockwise seen from above: an "I"
+    whose web runs from x0 to x1 (along the wall) and from y0 to y1 (the depth
+    of the sashes), with a flange f1 thick in front of y0 and one f2 thick
+    behind y1, each reaching c past the web so the windows sit in the two
+    channels. Without a flange that end is just the end of the web."""
+    front = ([(x0, y0), (x0 - c, y0), (x0 - c, y0 - f1),
+              (x1 + c, y0 - f1), (x1 + c, y0), (x1, y0)]
+             if f1 > 0 else [(x0, y0), (x1, y0)])
+    back = ([(x1, y1), (x1 + c, y1), (x1 + c, y1 + f2),
+             (x0 - c, y1 + f2), (x0 - c, y1), (x0, y1)]
+            if f2 > 0 else [(x1, y1), (x0, y1)])
+    return front + back
+
+
+def _prism(mesh, T, outline, c0, c1):
+    """Closed vertical prism over a counter-clockwise plan outline."""
+    faces = [[(a, b, c1) for a, b in outline],
+             [(a, b, c0) for a, b in reversed(outline)]]
+    for (pa, pb), (qa, qb) in zip(outline, outline[1:] + outline[:1]):
+        faces.append([(pa, pb, c0), (qa, qb, c0), (qa, qb, c1), (pa, pb, c1)])
+    for q in faces:
+        f = mesh.add_face([T(*v) for v in q])
+        f.attrs["layer"] = LAYER_NAME
+
+
 def validate(p: dict) -> str | None:
     n = 2 if p.get("tipo") == "sc" else p["leaves"]
-    if p["W"] <= 2 * p["fw"] + n * 2 * p["sw"] + 0.04:
+    if p["W"] <= (2 * p["fw"] + (n - 1) * _mullion(p)
+                  + n * 2 * p["sw"] + 0.04):
         return tr("Larghezza troppo piccola per telaio e ante")
+    if _flanges(p)[2] > p["sw"]:
+        return tr("Il canale del montante è più profondo della larghezza del profilo dell'anta")
     if p["H"] <= 2 * p["fw"] + 2 * p["sw"] + 0.04:
         return tr("Altezza troppo piccola per telaio e ante")
     nv, nh = _counts(p)
     dv, dh = p.get("dv", 0.03), p.get("dh", 0.03)
-    iw = (p["W"] - 2 * p["fw"]) / n - 2 * p["sw"]
+    iw = (p["W"] - 2 * p["fw"] - (n - 1) * _mullion(p)) / n - 2 * p["sw"]
     ih = p["H"] - 2 * p["fw"] - 2 * p["sw"]
     if (iw - nv * dv) / (nv + 1) < 0.02:
         return tr("Divisioni verticali troppo numerose o spesse per l'anta")
@@ -338,12 +404,19 @@ def window_meshes(d: dict):
     _box(frame, T, fw, W - fw, fb0, fb1, 0, fw, FRAME_COLOR)
     _box(frame, T, fw, W - fw, fb0, fb1, H - fw, H, FRAME_COLOR)
 
-    wl = (W - 2 * fw) / n
+    # with a mullion the sashes are separate windows in one frame: its web
+    # sits between two of them and its flanges lap over their stiles
+    mw = _mullion(d)
+    f1, f2, mc = _flanges(d)
+    wl = sash_width(d)
     sb0, sb1 = -sd / 2, sd / 2
     c0, c1 = fw, H - fw
     for i in range(n):
-        a0 = fw + i * wl
+        a0 = fw + i * (wl + mw)
         a1 = a0 + wl
+        if mw > 0 and i < n - 1:
+            _prism(frame, T, mullion_profile(a1, a1 + mw, sb0, sb1,
+                                             f1, f2, mc), c0, c1)
         _box(frame, T, a0, a0 + sw, sb0, sb1, c0, c1, FRAME_COLOR)
         _box(frame, T, a1 - sw, a1, sb0, sb1, c0, c1, FRAME_COLOR)
         _box(frame, T, a0 + sw, a1 - sw, sb0, sb1, c0, c0 + sw, FRAME_COLOR)
@@ -678,9 +751,12 @@ def handle_mesh(d: dict):
         ra0, _ra1, rb0, _rb1 = _sc_sashes(d)[1]
         _lever(hw, T, ra0 + sw / 2, zc, rb0)
     else:
-        wl = (W - 2 * fw) / n
+        mw = _mullion(d)
+        wl = sash_width(d)
         for i in range(n):
-            if n == 1 or i < n - 1:
+            if mw > 0:                 # separate windows: a lever on each
+                _lever(hw, T, fw + i * (wl + mw) + wl - sw / 2, zc, -sd / 2)
+            elif n == 1 or i < n - 1:
                 xm = fw + (i + 1) * wl
                 _lever(hw, T, xm - sw / 2 if n == 1 else xm + sw / 2, zc,
                        -sd / 2)
@@ -1505,6 +1581,12 @@ def ask_params(parent, current: dict, title: str, ok_text: str,
     for n in range(2, 9):
         leaves.addItem(tr("{0} ante").format(n), n)
     leaves.setCurrentIndex(leaves.findData(int(current["leaves"])))
+    mull = {k: _spin(current.get(k, MULLION_DEFAULT[k]) or 0.0, 0.0, hi)
+            for k, hi in zip(MULLION_KEYS, (0.5, 0.2, 0.2, 0.2))}
+    mull["mw"].setToolTip(tr("Montante fisso tra una finestra e la successiva (finestre accoppiate in un unico telaio): lo spessore dell'anima della \"I\". 0 = nessun montante."))
+    mull["mf1"].setToolTip(tr("Spessore dell'aletta del montante sul lato anteriore della finestra. 0 = nessuna aletta su questo lato."))
+    mull["mf2"].setToolTip(tr("Spessore dell'aletta del montante sul lato posteriore della finestra. 0 = nessuna aletta su questo lato."))
+    mull["mc"].setToolTip(tr("Di quanto ogni aletta sporge oltre l'anima del montante, sopra il bordo della finestra da ciascun lato."))
     fw = _spin(current["fw"], 0.01, 0.5)
     fd = _spin(current["fd"], 0.02, 1.0)
     sw = _spin(current["sw"], 0.01, 0.5)
@@ -1600,7 +1682,20 @@ def ask_params(parent, current: dict, title: str, ok_text: str,
     form.addRow(tr("Altezza da terra (h) (m)"), sill)
     form.addRow(tr("Tipo di finestra"), tipo)
     form.addRow(tr("Ante"), leaves)
+    form.addRow(tr("Montante: spessore dell'anima (0 = nessuno) (m)"), mull["mw"])
+    form.addRow(tr("Montante: spessore dell'aletta anteriore (m)"), mull["mf1"])
+    form.addRow(tr("Montante: spessore dell'aletta posteriore (m)"), mull["mf2"])
+    form.addRow(tr("Montante: profondità del canale (m)"), mull["mc"])
     form.addRow(tr("Apertura scorrevole (0 = chiusa, 100 = aperta)"), slv)
+
+    def _mullion_changed(*_a):
+        can = tipo.currentData() != "sc" and leaves.currentData() > 1
+        mull["mw"].setEnabled(can)
+        on = can and mull["mw"].value() > 0
+        for k in MULLION_KEYS[1:]:
+            mull[k].setEnabled(on)
+    leaves.currentIndexChanged.connect(_mullion_changed)
+    mull["mw"].valueChanged.connect(_mullion_changed)
 
     def _tipo_changed(*_a):
         sc = tipo.currentData() == "sc"
@@ -1613,6 +1708,8 @@ def ask_params(parent, current: dict, title: str, ok_text: str,
             lbl.setEnabled(sc)
     tipo.currentIndexChanged.connect(_tipo_changed)
     _tipo_changed()
+    tipo.currentIndexChanged.connect(_mullion_changed)
+    _mullion_changed()
     form.addRow(tr("Telaio: larghezza profilo (f) (m)"), fw)
     form.addRow(tr("Telaio: profondità (p) (m)"), fd)
     form.addRow(tr("Profilo dell'anta (a) (m)"), sw)
@@ -1676,6 +1773,7 @@ def ask_params(parent, current: dict, title: str, ok_text: str,
                 "spd": spd.value(), "spw": spw.value(),
                 "sbd": sbd.value(), "sba": sba.value(),
                 "sub": sub.isChecked(),
+                **{k: mull[k].value() for k in MULLION_KEYS},
                 "nv": nv.value(), "nh": nh.value(),
                 "dv": dv.value(), "dh": dh.value(),
                 "shut": shut.currentData() or "", "shv": shv.value(),
@@ -1690,6 +1788,7 @@ def ask_params(parent, current: dict, title: str, ok_text: str,
                "spt": spt, "spl": spl, "spd": spd, "spw": spw, "sbd": sbd,
                "sba": sba, "sub": sub, "nv": nv, "nh": nh, "dv": dv,
                "dh": dh, "shut": shut, "cur": cur}
+        tw_.update(mull)
         tw_.update(paint)
         _tipi.fill_widgets(tw_, dict(t, **{k: t.get(k) for k in paint}))
         if "hatch" in t:
@@ -1912,6 +2011,9 @@ def edit_windows(viewport, wins=None) -> None:
     d = window_data(wins[0])
     current = {k: d[k] for k in ("W", "H", "sill", "leaves", "fw", "fd", "sw")}
     current.update({k: d.get(k, DIV_DEFAULT[k]) for k in DIV_KEYS})
+    # absent in windows made before mullions: none
+    current.update({k: d.get(k, 0.0 if k == "mw" else MULLION_DEFAULT[k])
+                    for k in MULLION_KEYS})
     current.update({k: d.get(k, SHUT_DEFAULT[k]) for k in SHUT_KEYS})
     current.update({k: d.get(k, CURT_DEFAULT[k]) for k in CURT_KEYS})
     current.update({k: d.get(k, SILL_DEFAULT[k]) for k in SILL_KEYS})
@@ -2001,6 +2103,7 @@ def _outliner_kind(group):
                       (tr("Altezza"), fmt_len(d["H"])),
                       (tr("Da terra"), fmt_len(d["sill"])),
                       (tr("Ante"), str(int(d["leaves"])))]
+            + ([(tr("Montante"), fmt_len(_mullion(d)))] if _mullion(d) else [])
             + piani.level_props(d)}
 
 

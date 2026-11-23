@@ -4035,4 +4035,24 @@ TR = {
         "not reversed (R)",
     "Ribalta la porta (maniglia dall'altro lato)":
         "Reverse door (handle on the other side)",
+    "Montante: spessore dell'anima (0 = nessuno) (m)":
+        "Mullion: centre thickness (0 = none) (m)",
+    "Montante: spessore dell'aletta anteriore (m)":
+        "Mullion: front flange thickness (m)",
+    "Montante: spessore dell'aletta posteriore (m)":
+        "Mullion: back flange thickness (m)",
+    "Montante: profondità del canale (m)":
+        "Mullion: channel depth (m)",
+    "Montante fisso tra una finestra e la successiva (finestre accoppiate in un unico telaio): lo spessore dell'anima della \"I\". 0 = nessun montante.":
+        "Fixed mullion between one window and the next (mulled windows in a single frame): the thickness of the centre of the \"I\". 0 = no mullion.",
+    "Spessore dell'aletta del montante sul lato anteriore della finestra. 0 = nessuna aletta su questo lato.":
+        "Thickness of the mullion's flange on the front of the window. 0 = no flange on this side.",
+    "Spessore dell'aletta del montante sul lato posteriore della finestra. 0 = nessuna aletta su questo lato.":
+        "Thickness of the mullion's flange on the back of the window. 0 = no flange on this side.",
+    "Di quanto ogni aletta sporge oltre l'anima del montante, sopra il bordo della finestra da ciascun lato.":
+        "How far each flange reaches past the centre of the mullion, over the edge of the window on either side.",
+    "Il canale del montante è più profondo della larghezza del profilo dell'anta":
+        "Mullion channel is deeper than the sash profile is wide",
+    "Montante":
+        "Mullion",
 }
