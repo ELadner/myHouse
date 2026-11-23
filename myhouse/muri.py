@@ -322,6 +322,15 @@ def wall_corners(d):
         drs.append(nr_)
     left, right = offset_points_var(pts, False, dls, drs)
     res = [left[ia], right[ia], left[ia + 1], right[ia + 1]]
+    # butt joints: "ja" / "jb" = "through" (this wall runs to the outside of
+    # the corner) or "butt" (it stops against the face of the other wall);
+    # no key = the mitre above
+    if d.get("ja") and d.get("prev"):
+        res[0], res[1] = _butt_end(res[0], res[1], a, b, tuple(d["prev"]),
+                                   d["ja"], -1.0)
+    if d.get("jb") and d.get("next"):
+        res[2], res[3] = _butt_end(res[2], res[3], b, a, tuple(d["next"]),
+                                   d["jb"], 1.0)
     jn = d.get("jn")
     if jn and abs(jn.get("th", d["th"]) - d["th"]) < 1e-9 \
             and jn.get("al", d["align"]) == d["align"]:
@@ -329,6 +338,32 @@ def wall_corners(d):
             if jn.get(k):
                 res[i] = (float(jn[k][0]), float(jn[k][1]))
     return tuple(res)
+
+
+def _butt_end(PL, PR, P, other, N, kind, sign):
+    """The two corners of one end of a wall, cut for a butt joint instead of
+    a mitre. PL, PR: the mitre corners; P: this end, other: the far end; N:
+    the far end of the wall joined here. The cut runs along the joined wall:
+    through its outer face for the wall that runs "through", through its
+    inner face for the wall that "butt"s against it."""
+    L = math.hypot(P[0] - other[0], P[1] - other[1])
+    M = math.hypot(N[0] - P[0], N[1] - P[1])
+    if L < 1e-9 or M < 1e-9:
+        return PL, PR
+    ux, uy = (P[0] - other[0]) / L * sign, (P[1] - other[1]) / L * sign
+    vx, vy = (N[0] - P[0]) / M, (N[1] - P[1]) / M
+    cr = ux * vy - uy * vx
+    if abs(cr) < 1e-6:                     # in line: nothing to butt against
+        return PL, PR
+    sl = ((PL[0] - P[0]) * ux + (PL[1] - P[1]) * uy) * sign
+    sr = ((PR[0] - P[0]) * ux + (PR[1] - P[1]) * uy) * sign
+    outer, inner = (PL, PR) if sl > sr else (PR, PL)
+    Q = outer if kind == "through" else inner
+
+    def cut(X):
+        t = ((Q[0] - X[0]) * vy - (Q[1] - X[1]) * vx) / cr
+        return (X[0] + ux * t, X[1] + uy * t)
+    return cut(PL), cut(PR)
 
 
 def wall_th_at(d, s):

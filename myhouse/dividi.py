@@ -72,9 +72,9 @@ def split(scene, group, s: float):
     d2.update(a=list(p), prev=list(a))
     # what belonged to the end each half no longer has, and what is worked
     # out again below (the holes) or no longer fits (bonded corners)
-    for k in ("sm_b", "next_rev", "nxth", "jn", "open"):
+    for k in ("sm_b", "next_rev", "nxth", "jb", "jn", "open"):
         d1.pop(k, None)
-    for k in ("sm_a", "prev_rev", "pth", "jn", "open"):
+    for k in ("sm_a", "prev_rev", "pth", "ja", "jn", "open"):
         d2.pop(k, None)
     niches = d.get("niches") or ()
     for half, keep in ((d1, [list(n) for n in niches if (n[0] + n[1]) / 2 < s]),
