@@ -4057,4 +4057,24 @@ TR = {
         "Mullion",
     "centro":
         "middle",
+    "A ghigliottina (singola/doppia)":
+        "Single-/double-hung",
+    "A battente":
+        "Casement",
+    "A sporgere":
+        "Awning",
+    "Scorrevole":
+        "Sliding",
+    "Fissa":
+        "Picture",
+    "Personalizzata":
+        "Custom",
+    "Personalizzata (scrivi larghezza e altezza qui sotto)":
+        "Custom (type the width and height below)",
+    "Misure standard USA per questo tipo di finestra: piedi e pollici di larghezza, poi di altezza (2852 = 2'8\" × 5'2\"). Scegliendone una si impostano larghezza e altezza totali. L'elenco è solo una scorciatoia: qualsiasi larghezza e altezza si può scrivere nelle due caselle qui sotto.":
+        "Standard US sizes for this type of window: feet and inches of width, then of height (2852 = 2'8\" × 5'2\"). Picking one sets the total width and height. The list is only a shortcut: any width and height can be typed in the two boxes below.",
+    "Misure standard USA: tipo":
+        "US standard sizes: type",
+    "Misure standard USA: misura":
+        "US standard sizes: size",
 }

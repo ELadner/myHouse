@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from ._lingua import tr
-from ._imperial import FT, IN, LengthSpin, dflt
+from ._imperial import FT, IN, LengthSpin, dflt, imperial
 from ._scroll import scroll_form
 
 import copy
@@ -90,7 +90,67 @@ SPAL_DEFAULT = {"spt": "", "spl": "e", "spd": 0.10, "spw": 0.05,
 CURT_ABOVE = 0.20
 
 
+# Standard US sizes by window type, in inches, from Pella's standard-size
+# charts (pella.com/ideas/windows/standard-window-sizes): every width of a
+# type comes in every one of its heights, except where "tallest" caps a narrow
+# slider. Picture windows have no chart there, only four common sizes.
+# Adding a type or a size is a change to this table and nothing else.
+STANDARD_SIZES = {
+    "hung": {
+        "label": tr("A ghigliottina (singola/doppia)"),
+        "widths": [24, 28, 30, 32, 36, 38, 42, 48, 54],
+        "heights": [36, 38, 42, 46, 48, 52, 54, 60, 62, 66, 72, 78]},
+    "casement": {
+        "label": tr("A battente"),
+        "widths": [18, 24, 28, 30, 32, 36],
+        "heights": [30, 36, 42, 48, 54, 60, 66, 72]},
+    "awning": {
+        "label": tr("A sporgere"),
+        "widths": [20.5, 24, 28, 30, 32, 36, 42, 48, 54, 60],
+        "heights": [18, 24, 30, 36, 40, 48, 54, 60]},
+    "sliding": {
+        "label": tr("Scorrevole"),
+        "widths": [24, 30, 36, 48, 60, 72],
+        "heights": [18, 24, 30, 36, 42, 48, 54, 60, 72],
+        "tallest": {24: 42, 30: 54, 36: 60}},
+    "picture": {
+        "label": tr("Fissa"),
+        "sizes": [(36, 24), (60, 36), (72, 48), (48, 60)]},
+}
+
+
+def standard_sizes(style: str):
+    """[(width, height)] in inches of one window type, narrowest first."""
+    t = STANDARD_SIZES.get(style)
+    if t is None:
+        return []
+    if "sizes" in t:
+        return list(t["sizes"])
+    top = t.get("tallest", {})
+    return [(w, h) for w in t["widths"] for h in t["heights"]
+            if h <= top.get(w, h)]
+
+
+def size_code(w: float, h: float) -> str:
+    """The trade's notation for a size in inches: feet and inches of width,
+    then of height: 32 x 62 is "2852" (2'8" x 5'2"), 24 x 46 is "20310"."""
+    def part(v):
+        return f"{int(v // 12)}{v % 12:g}".replace(".", "")
+    return part(w) + part(h)
+
+
+def size_label(w: float, h: float) -> str:
+    return f'{size_code(w, h)} — {w:g}" × {h:g}"'
+
+
+def style_label(style) -> str:
+    t = STANDARD_SIZES.get(style or "")
+    return t["label"] if t else ""
+
+
 class _Settings:
+    # US standard sizes: a key of STANDARD_SIZES, or "" (always "" in metric)
+    style = dflt("hung", "")
     W = dflt(32 * IN, 1.20)
     H = dflt(48 * IN, 1.40)
     sill = dflt(36 * IN, 0.90)
@@ -161,6 +221,7 @@ def _params() -> dict:
     if _Settings.hatch:
         p["hatch"] = copy.deepcopy(_Settings.hatch)
     p["tipo_id"], p["tipo_nome"] = _Settings.tipo_id, _Settings.tipo_nome
+    p["style"] = _Settings.style
     return p
 
 
@@ -168,6 +229,7 @@ def _store(p: dict) -> None:
     _Settings.W, _Settings.H, _Settings.sill = p["W"], p["H"], p["sill"]
     _Settings.leaves, _Settings.fw = p["leaves"], p["fw"]
     _Settings.fd, _Settings.sw = p["fd"], p["sw"]
+    _Settings.style = p.get("style") or ""
     for k in DIV_KEYS:
         setattr(_Settings, k, p.get(k, DIV_DEFAULT[k]))
     for k in MULLION_KEYS:
@@ -1709,6 +1771,47 @@ def ask_params(parent, current: dict, title: str, ok_text: str,
     if scene is not None and piani.levels(scene):
         lvl = piani.level_combo(scene, piani.active_id(scene))
         form.addRow(tr("Piano (muri su cui posare)"), lvl)
+    # US standard sizes: a shortcut that fills the width and height (only in
+    # feet and inches; the table is of US sizes)
+    style = QComboBox()
+    style.addItem(tr("Personalizzata"), "")
+    for key, t in STANDARD_SIZES.items():
+        style.addItem(t["label"], key)
+    style.setCurrentIndex(max(0, style.findData(current.get("style") or "")))
+    size = QComboBox()
+    size.setToolTip(tr("Misure standard USA per questo tipo di finestra: piedi e pollici di larghezza, poi di altezza (2852 = 2'8\" × 5'2\"). Scegliendone una si impostano larghezza e altezza totali. L'elenco è solo una scorciatoia: qualsiasi larghezza e altezza si può scrivere nelle due caselle qui sotto."))
+
+    def match_size(_v=0.0) -> None:        # typed sizes: show what they are
+        here = (round(W.value() / IN, 3), round(H.value() / IN, 3))
+        hit = [i for i in range(1, size.count())
+               if tuple(size.itemData(i)) == here]
+        size.blockSignals(True)
+        size.setCurrentIndex(hit[0] if hit else 0)
+        size.blockSignals(False)
+
+    def fill_sizes(_i=0) -> None:          # the sizes of the chosen type
+        size.blockSignals(True)
+        size.clear()
+        size.addItem(tr("Personalizzata (scrivi larghezza e altezza qui sotto)"), None)
+        for w_in, h_in in standard_sizes(style.currentData()):
+            size.addItem(size_label(w_in, h_in), (w_in, h_in))
+        size.blockSignals(False)
+        size.setEnabled(size.count() > 1)
+        match_size()
+
+    def pick_size(_i=0) -> None:
+        wh = size.currentData()
+        if wh is not None:
+            W.setValue(wh[0] * IN)
+            H.setValue(wh[1] * IN)
+    style.currentIndexChanged.connect(fill_sizes)
+    size.currentIndexChanged.connect(pick_size)
+    W.valueChanged.connect(match_size)
+    H.valueChanged.connect(match_size)
+    fill_sizes()
+    if imperial():
+        form.addRow(tr("Misure standard USA: tipo"), style)
+        form.addRow(tr("Misure standard USA: misura"), size)
     form.addRow(tr("Larghezza totale (W) (m)"), W)
     form.addRow(tr("Altezza totale (H) (m)"), H)
     form.addRow(tr("Altezza da terra (h) (m)"), sill)
@@ -1805,6 +1908,7 @@ def ask_params(parent, current: dict, title: str, ok_text: str,
                 "spd": spd.value(), "spw": spw.value(),
                 "sbd": sbd.value(), "sba": sba.value(),
                 "sub": sub.isChecked(),
+                "style": style.currentData() or "",
                 **{k: mull[k].value() for k in MULLION_KEYS},
                 "nv": nv.value(), "nh": nh.value(),
                 "dv": dv.value(), "dh": dh.value(),
@@ -2053,6 +2157,7 @@ def edit_windows(viewport, wins=None) -> None:
     current.update({k: d.get(k) for k in PAINT_KEYS})
     current["hatch"] = d.get("hatch")
     current["tipo_id"], current["tipo_nome"] = d.get("tipo_id"), d.get("tipo_nome")
+    current["style"] = d.get("style") or ""
     title = tr("Modifica finestra") if len(wins) == 1 \
         else tr("Modifica {0} finestre").format(len(wins))
     p = ask_params(viewport.window(), current, title, tr("Applica"),
@@ -2130,7 +2235,9 @@ def _outliner_kind(group):
     if d is None:
         return None
     return {"type": tr("Finestra"),
-            "props": [(tr("Larghezza"), fmt_len(d["W"])),
+            "props": ([(tr("Misure standard USA: tipo"), style_label(d.get("style")))]
+                      if style_label(d.get("style")) else [])
+            + [(tr("Larghezza"), fmt_len(d["W"])),
                       (tr("Altezza"), fmt_len(d["H"])),
                       (tr("Da terra"), fmt_len(d["sill"])),
                       (tr("Ante"), str(int(d["leaves"])))]

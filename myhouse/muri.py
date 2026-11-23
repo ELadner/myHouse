@@ -2775,10 +2775,21 @@ class MuriTool(Tool):
     def _ortho(self, p: QVector3D) -> QVector3D:
         if not (_Settings.ortho and self.points):
             return p
+        # the nearest 45° direction from the previous point (0, 45, 90, 135…):
+        # the cursor is projected onto it, so along X or Y it is plain ortho
         last = self.points[-1]
-        if abs(p.x() - last.x()) >= abs(p.y() - last.y()):
-            return QVector3D(p.x(), last.y(), p.z())
-        return QVector3D(last.x(), p.y(), p.z())
+        dx, dy = p.x() - last.x(), p.y() - last.y()
+        if abs(dx) < EPS and abs(dy) < EPS:
+            return p
+        step = math.pi / 4
+        ang = round(math.atan2(dy, dx) / step) * step
+        ux, uy = math.cos(ang), math.sin(ang)
+        if abs(ux) < 1e-9:              # exactly on an axis: no drift
+            ux = 0.0
+        if abs(uy) < 1e-9:
+            uy = 0.0
+        run = dx * ux + dy * uy
+        return QVector3D(last.x() + run * ux, last.y() + run * uy, p.z())
 
     def _level(self):
         from . import piani
