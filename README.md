@@ -32,7 +32,7 @@ Il codice sorgente della 1.4 è nella cartella `myhouse/`; `myhouse.zip` contien
 
 **Porte**
 
-- Larghezza e altezza della porta vera e propria (l'anta), accanto a quelle totali: il telaio sta all'esterno.
+- Larghezza e altezza della porta vera e propria (l'anta), accanto a quelle totali: il telaio sta all'esterno. In piedi e pollici le misure totali sono calcolate dalla porta e dal telaio.
 - Porte a libro per armadi, singole o doppie.
 - Ribalta la porta (lato della maniglia): tasto destro su una porta posata, oppure R durante la posa.
 
@@ -69,7 +69,7 @@ The 1.4 source code is in the `myhouse/` folder; `myhouse.zip` holds the same fi
 
 **Doors**
 
-- Width and height of the door itself (the slab), beside the total ones: the frame sits outside.
+- Width and height of the door itself (the slab), beside the total ones: the frame sits outside. In feet and inches the totals are worked out from the door and the frame.
 - Bi-fold closet doors, single or dual.
 - Reverse door (handle side): right-click a placed door, or R while placing.
 

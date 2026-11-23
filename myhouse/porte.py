@@ -12,13 +12,13 @@ from PySide6.QtGui import (
     QColor, QFont, QMatrix4x4, QPainter, QPen, QPolygonF, QVector3D,
 )
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
+    QAbstractSpinBox, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
     QVBoxLayout, QWidget,
 )
 
 from core import bim
 from . import _ifc
-from ._imperial import FT, IN, dflt, fmt_len
+from ._imperial import FT, IN, dflt, fmt_len, imperial
 from tools.base import Tool, ToolContext
 
 from . import _codici, _tipi, finestre, muri, piani
@@ -1145,7 +1145,11 @@ def ask_params(parent, current: dict, title: str, ok_text: str,
         n = 1 if leaves.currentData() == 1 else 2
         return _around(model.currentData(), n, fw.value())
 
+    driving = [False]            # the door size is setting the totals
+
     def slab_from_total(*_a) -> None:
+        if driving[0]:           # never write back into the field being typed
+            return
         aw, ah_ = around()
         set_quiet(dW, W.value() - aw)
         set_quiet(dH, H.value() - ah_)
@@ -1154,8 +1158,27 @@ def ask_params(parent, current: dict, title: str, ok_text: str,
         # the frame, the leaves or the model changed, or a door size was
         # typed: the door keeps its size and the hole in the wall follows
         aw, ah_ = around()
-        W.setValue(dW.value() + aw)
-        H.setValue(dH.value() + ah_)
+        driving[0] = True
+        try:
+            W.setValue(dW.value() + aw)
+            H.setValue(dH.value() + ah_)
+        finally:
+            driving[0] = False
+
+    def slab_settled() -> None:
+        # typing is over: if a total hit its limit, show the door that fits
+        if not (dW.hasFocus() or dH.hasFocus()):
+            slab_from_total()
+
+    if imperial():
+        # feet and inches: doors are sized by the door itself, so the totals
+        # are worked out from it and the frame, and cannot be typed
+        for s in (W, H):
+            s.setReadOnly(True)
+            s.setButtonSymbols(QAbstractSpinBox.NoButtons)
+            s.setToolTip(tr(
+                "Calcolata: misura della porta più il telaio. "
+                "Cambia la misura della porta o il profilo del telaio."))
 
     a1.valueChanged.connect(on_ante)
     a2.valueChanged.connect(on_ante)
@@ -1175,6 +1198,8 @@ def ask_params(parent, current: dict, title: str, ok_text: str,
         s.valueChanged.connect(slab_from_total)
     for s in (dW, dH, fw):
         s.valueChanged.connect(total_from_slab)
+    for s in (dW, dH):
+        s.editingFinished.connect(slab_settled)
     for c in (leaves, model):
         c.currentIndexChanged.connect(total_from_slab)
     box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)

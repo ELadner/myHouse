@@ -17,9 +17,9 @@ def rows(dlg):
 def door_dialog(myhouse, window, monkeypatch):
     """Runs porte.ask_params with 'play(rows)' in place of the user; returns its result."""
     from myhouse import _imperial, porte
-    monkeypatch.setattr(_imperial, "_setting", "metric")
+    def run(play, units="metric", **current):
+        monkeypatch.setattr(_imperial, "_setting", units)
 
-    def run(play, **current):
         def fake_exec(dlg):
             dlg.show()
             play(rows(dlg))
@@ -83,6 +83,58 @@ def test_dialog_two_leaves_and_asymmetric_follow(door_dialog):
     assert seen["two"] == pytest.approx((0.774, 0.774 + 0.12 + 0.012))
     w, dw = seen["asym"]
     assert dw == pytest.approx(w - 0.12 - 0.012)
+
+
+def typed(field, text):
+    """Types text over a field's content, one key at a time, as a user does."""
+    from PySide6.QtTest import QTest
+    field.setFocus()
+    field.selectAll()
+    QTest.keyClicks(field, text)
+    return field.lineEdit().text()
+
+
+def test_dialog_typing_a_door_size_is_not_overwritten(door_dialog):
+    seen = {}
+
+    def play(r):
+        seen["text"] = typed(r[label(DW)], "0.8")         # "0" alone is below every limit
+        seen["w"] = (r[label(DW)].value(), r[label(W)].value())
+        seen["text_h"] = typed(r[label(DH)], "2")
+        seen["h"] = (r[label(DH)].value(), r[label(H)].value())
+        seen["editable"] = not r[label(W)].isReadOnly()
+    door_dialog(play)
+    assert seen["text"] == "0.8" and seen["text_h"] == "2"
+    assert seen["w"] == pytest.approx((0.80, 0.80 + 0.126))
+    assert seen["h"] == pytest.approx((2.0, 2.0 + 0.066))
+    assert seen["editable"]                               # metric: the totals can still be typed
+
+
+def test_dialog_imperial_door_size_drives_the_totals(door_dialog):
+    IN = 0.0254
+    seen = {}
+
+    def ft(italian):
+        return label(italian).replace("(m)", "(ft-in)")
+
+    def play(r):
+        dw, dh, w, h, fw = (r[ft(k)] for k in (DW, DH, W, H, FW))
+        seen["text"] = typed(dw, "30")                    # 30": "3" alone must not be rewritten
+        seen["text_h"] = typed(dh, "6'8")
+        seen["size"] = (dw.value(), dh.value(), w.value(), h.value())
+        seen["locked"] = w.isReadOnly() and h.isReadOnly()
+        fw.setValue(1.5 * IN)                             # a wider frame: door kept, totals grow
+        seen["frame"] = (dw.value(), dh.value(), w.value(), h.value())
+        leaves = r[label(LEAVES)]
+        leaves.setCurrentIndex(leaves.findData(2))
+        seen["two"] = (dw.value(), w.value())
+    p = door_dialog(play, units="imperial", fw=0.75 * IN)
+    assert seen["text"] == "30" and seen["text_h"] == "6'8"
+    assert seen["locked"]
+    assert seen["size"] == pytest.approx((30 * IN, 80 * IN, 31.5 * IN + 0.006, 80.75 * IN + 0.006))
+    assert seen["frame"] == pytest.approx((30 * IN, 80 * IN, 33 * IN + 0.006, 81.5 * IN + 0.006))
+    assert seen["two"] == pytest.approx((30 * IN, 33 * IN + 0.012))
+    assert p["W"] == pytest.approx(33 * IN + 0.012) and p["H"] == pytest.approx(81.5 * IN + 0.006)
 
 
 def bbox_x(mesh):
