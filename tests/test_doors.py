@@ -119,3 +119,47 @@ def test_dialog_choosing_bifold_proposes_a_closet_front(door_dialog):
     assert seen["leaves"] == (2, "Dual bi-fold (4 panels)", True)
     assert seen["thick"] == pytest.approx(0.035) and seen["arch"] is False
     assert (p["model"], p["leaves"], p["arch"], p["asym"], p["slide"]) == ("bifold", 2, "none", False, False)
+
+
+def span_along(mesh, u):
+    ts = [v.position.x() * u[0] + v.position.y() * u[1] for v in mesh.vertices]
+    return min(ts), max(ts)
+
+
+def test_reversed_door_stays_in_its_hole(myhouse):
+    from myhouse import porte
+    d = dict(porte._params_geom(), W=0.90, H=2.10, fw=0.06, fd=0.12, sw=0.04, leaves=1, model="porta",
+             o=[2., 1., 0.], u=[1., 0.], flip=False)
+    r = dict(d, **porte.reversed_place(d))
+    assert r["o"] == pytest.approx([2.9, 1., 0.]) and r["flip"] is True
+    frame, _leaf, _glass, hw = porte.door_meshes_all(d)
+    frame_r, _l, _g, hw_r = porte.door_meshes_all(r)
+    assert span_along(frame_r, (1, 0)) == pytest.approx(span_along(frame, (1, 0)))   # same hole
+    mid = 2.45
+    side = lambda m: sum(span_along(m, (1, 0))) / 2 > mid
+    assert side(hw) != side(hw_r)                                                   # handle changed side
+    back = dict(r, **porte.reversed_place(r))
+    assert back["o"] == pytest.approx(d["o"]) and back["flip"] is False
+
+
+def test_reverse_placed_door_and_while_placing(viewport, monkeypatch):
+    from PySide6.QtGui import QVector3D
+    from myhouse import finestre, muri, porte
+    scene = viewport.scene
+    muri.build_walls(scene, [(0., 0.), (5., 0.)], False, 0.30, 2.7, 0.0, "W")
+    p = dict(porte._params_geom(), W=0.90, H=2.10, fw=0.06, fd=0.12, sw=0.04, leaves=1, model="porta")
+    monkeypatch.setattr(porte._Settings, "rev", False)
+    plain = porte.place_at(scene, QVector3D(2., 0.1, 0.), p)
+    monkeypatch.setattr(porte._Settings, "rev", True)
+    turned = porte.place_at(scene, QVector3D(2., 0.1, 0.), p)
+    assert turned["flip"] != plain["flip"]
+    assert abs(turned["o"][0] - plain["o"][0]) == pytest.approx(0.90)
+    porte.make_door(scene, p, plain)
+    finestre.update_openings(scene)
+    door = next(g for g in scene.groups if porte.door_data(g))
+    wall = next(g for g in scene.groups if muri.wall_data(g))
+    hole = [list(o) for o in muri.wall_data(wall)["open"]]
+    porte.reverse_doors(viewport, [door])
+    assert porte.door_data(door)["flip"] != plain["flip"]
+    after = [list(o) for o in muri.wall_data(wall)["open"]]
+    assert len(after) == len(hole) == 1 and after[0][:4] == pytest.approx(hole[0][:4])   # the hole did not move

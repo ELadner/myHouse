@@ -150,6 +150,7 @@ class _Settings:
     slide = False
     open = 0.0
     flip = False
+    rev = False             # reversed while placing: handle on the other side
     level = None
     col_frame = list(DEFAULT_PAINT["frame"])
     tex_frame = None
@@ -1190,6 +1191,25 @@ def ask_params(parent, current: dict, title: str, ok_text: str,
     return tbar.result(_result())
 
 
+def reversed_place(d: dict) -> dict:
+    """The same door in the same hole, turned end for end: the handle (and
+    the hinge) change side. Flipping turns the door about its corner, so the
+    corner moves to the other end of the unit."""
+    (ux, uy), _n = finestre._axes(d)
+    ox, oy, oz = d["o"]
+    return {"o": [ox + ux * d["W"], oy + uy * d["W"], oz],
+            "flip": not d.get("flip")}
+
+
+def place_at(scene, world, p: dict) -> dict:
+    """Where the door being placed goes: on the wall under the cursor, on
+    the chosen edge, reversed if R was pressed."""
+    place = finestre.placement(scene, world, _Settings.flip, _Settings.level)
+    if _Settings.rev:
+        place.update(reversed_place({**p, **place}))
+    return place
+
+
 class PortaTool(Tool):
     name = tr("Porta")
     shortcut = None
@@ -1206,7 +1226,8 @@ class PortaTool(Tool):
             self.hover = None
             viewport.flash_status(
                 tr("Porta: clic per posarla · Spazio = ribalta · "
-                "Esc / tasto destro = esci"), 6000)
+                "Esc / tasto destro = esci")
+                + tr(" · R = maniglia dall'altro lato"), 6000)
             return
         p = ask_params(viewport.window(), _params(), tr("Porta"), tr("Posa"),
                        viewport.scene)
@@ -1252,8 +1273,7 @@ class PortaTool(Tool):
         world = QVector3D(ctx.world)
         self.hover = world
         p = _params()
-        place = finestre.placement(scene, world, _Settings.flip,
-                                   _Settings.level)
+        place = place_at(scene, world, p)
 
         def mutate(sc):
             make_door(sc, p, place)
@@ -1281,7 +1301,7 @@ class PortaTool(Tool):
             return False
         if self._buffer():
             return False
-        return key in (Qt.Key_Space, Qt.Key_Escape)
+        return key in (Qt.Key_Space, Qt.Key_Escape, Qt.Key_R)
 
     def on_key(self, viewport, key: int, modifiers) -> bool:
         if key == Qt.Key_Escape:
@@ -1294,10 +1314,18 @@ class PortaTool(Tool):
                 2000)
             viewport.update()
             return True
+        if key == Qt.Key_R:
+            _Settings.rev = not _Settings.rev
+            viewport.flash_status(
+                tr("Porta ribaltata: maniglia dall'altro lato") if _Settings.rev
+                else tr("Porta non ribaltata"), 2000)
+            viewport.update()
+            return True
         return False
 
     def status_clause(self) -> str:
-        return (tr("Spigolo {0} (Spazio ribalta) · Esc / tasto destro = esci").format((tr('destro') if _Settings.flip else tr('sinistro'))))
+        return (tr("Spigolo {0} (Spazio ribalta) · Esc / tasto destro = esci").format((tr('destro') if _Settings.flip else tr('sinistro')))
+                + tr(" · R = maniglia dall'altro lato"))
 
     def rubber_band_lines(self):
         if self.hover is None:
@@ -1306,8 +1334,7 @@ class PortaTool(Tool):
         if scene is None:
             return []
         d = _params()
-        d.update(finestre.placement(scene, self.hover, _Settings.flip,
-                                    _Settings.level))
+        d.update(place_at(scene, self.hover, d))
         return finestre.outline_lines(d)
 
     def draw_overlay(self, viewport, painter) -> None:
@@ -1333,7 +1360,8 @@ class PortaTool(Tool):
             tr("Da terra: {0} · telaio {1} × {2}").format(fmt_len(p['sill']), fmt_len(p['fw']), fmt_len(p['fd'])),
             (tr("Vuoto: ") + dict(ARCH_KINDS).get(p.get("arch", "none"), "")
              + (tr(" · freccia {0}").format(fmt_len(arch_rise(p))) if arch_rise(p) else "")),
-            tr("Spigolo: {0}  (Spazio ribalta)").format((tr('DESTRO') if _Settings.flip else tr('SINISTRO'))),
+            tr("Spigolo: {0}  (Spazio ribalta)").format((tr('DESTRO') if _Settings.flip else tr('SINISTRO')))
+            + "  ·  " + (tr("RIBALTATA (R)") if _Settings.rev else tr("non ribaltata (R)")),
             tr("Esc / tasto destro = esci"),
         ]
         w = max(fm.horizontalAdvance(t) for t in lines) + 16
@@ -1410,6 +1438,34 @@ def edit_doors(viewport, doors=None) -> None:
     viewport.notify_scene_changed()
     viewport.update()
     viewport.flash_status(tr("{0} porte aggiornate").format(len(doors)), 3000)
+
+
+def reverse_doors(viewport, doors=None) -> None:
+    """Turns the selected doors end for end, in the holes they are in."""
+    scene = viewport.scene
+    if getattr(scene, "edit_group", None) is not None:
+        viewport.flash_status(tr("Chiudi il gruppo che stai modificando"), 4000)
+        return
+    doors = doors or _selected_doors(scene)
+    if not doors:
+        viewport.flash_status(
+            tr("Seleziona una porta creata con lo strumento Porta"), 4000)
+        return
+
+    def mutate(sc):
+        for g in doors:
+            rebuild_door(g, reversed_place(door_data(g)))
+        finestre.update_openings(sc)
+
+    hist = viewport.history
+    hist.execute(FinestraCommand(mutate))
+    if getattr(hist, "last_error", None):
+        viewport.flash_status(
+            tr("Porta: ") + str(hist.last_error).split(": ", 1)[-1], 6000)
+        return
+    viewport.notify_scene_changed()
+    viewport.update()
+    viewport.flash_status(tr("Porta ribaltata: maniglia dall'altro lato"), 3000)
 
 
 def _hook_double_click(vp) -> None:
@@ -1745,6 +1801,10 @@ def register(api) -> None:
                 tr("Modifica porta…"),
                 lambda: QTimer.singleShot(
                     0, lambda: edit_doors(app.viewport)))
+            menu.addAction(
+                tr("Ribalta la porta (maniglia dall'altro lato)"),
+                lambda: QTimer.singleShot(
+                    0, lambda: reverse_doors(app.viewport)))
 
         add_ctx(context)
     add_kind = getattr(app, "add_outliner_kind", None)
