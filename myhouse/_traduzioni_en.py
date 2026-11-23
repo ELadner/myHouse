@@ -4015,4 +4015,12 @@ TR = {
         "Door height, without frame (m)",
     "Porta senza telaio":
         "Door without frame",
+    "A libro (armadio), singola o doppia":
+        "Bi-fold (closet), single or dual",
+    "A libro singola (2 pannelli)":
+        "Single bi-fold (2 panels)",
+    "A libro doppia (4 pannelli)":
+        "Dual bi-fold (4 panels)",
+    "{n} pannelli a libro":
+        "{n} bi-fold panels",
 }

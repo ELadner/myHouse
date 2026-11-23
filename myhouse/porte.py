@@ -39,6 +39,7 @@ MODELS = [("porta", tr("Porta")),
           ("porta6", tr("Porta 6 (5 specchiature)")),
           ("porta7", tr("Porta 7 (2 specchiature)")),
           ("porta8", tr("Porta 8 (8 vetri)")),
+          ("bifold", tr("A libro (armadio), singola o doppia")),
           ("garage1", tr("Garage 1 (basculante a coste)")),
           ("garage2", tr("Garage 2 (sezionale a pannelli)"))]
 HANDLE_KINDS = (("lever", tr("Leva con rosetta quadra")),
@@ -96,8 +97,16 @@ GAP = 0.003                      # play between leaf and frame, each side
 
 
 def _panels(model: str, leaves) -> int:
-    """How many panels stand side by side in the frame."""
+    """How many panels stand side by side in the frame. A bi-fold is two
+    hinged panels for each leaf: 2 single, 4 dual (a closet front)."""
+    if model == "bifold":
+        return 2 * int(leaves)
     return int(leaves) if model == "porta" else 1
+
+
+def _no_arch(model) -> bool:
+    """Models whose top is always square."""
+    return str(model).startswith("garage") or model == "bifold"
 
 
 def _around(model: str, leaves, fw: float):
@@ -176,7 +185,7 @@ def _params_geom() -> dict:
             "asym": bool(_Settings.asym and _Settings.leaves == 2
                          and _Settings.model == "porta"),
             "w1": _Settings.w1,
-            "arch": ("none" if _Settings.model.startswith("garage")
+            "arch": ("none" if _no_arch(_Settings.model)
                      else _Settings.arch),
             "arch_h": _Settings.arch_h, "handle": _Settings.handle,
             "slide": bool(_Settings.slide), "open": float(_Settings.open),
@@ -199,7 +208,7 @@ def _store(p: dict) -> None:
 
 
 def arch_rise(d: dict) -> float:
-    if str(d.get("model", "porta")).startswith("garage"):
+    if _no_arch(d.get("model", "porta")):
         return 0.0
     kind = d.get("arch", "none")
     if kind == "full":
@@ -538,6 +547,14 @@ def _handle(hw, T, x, zc, sw, dr=1, ln=0.14, kind="lever") -> None:
         box(x - 0.012, x + 0.012, zc - 0.085, zc - 0.06, inn, rs)
 
 
+def _knob(hw, T, x, zc, sw) -> None:
+    """The pull of a bi-fold panel, on the front face only."""
+    _box(hw, T, x - 0.008, x + 0.008, sw / 2, sw / 2 + 0.02,
+         zc - 0.008, zc + 0.008, METAL_COLOR)
+    _box(hw, T, x - 0.018, x + 0.018, sw / 2 + 0.02, sw / 2 + 0.035,
+         zc - 0.018, zc + 0.018, METAL_COLOR)
+
+
 def _glass_leaf(model, leaf, glass, T, a0, a1, z0, z1, sw) -> None:
     mg, bands = GLASS[model]
     wl, hl = a1 - a0, z1 - z0
@@ -598,7 +615,7 @@ def door_meshes_all(d: dict):
 
 def can_open(d: dict) -> bool:
     m = str(d.get("model", "porta"))
-    return m != "varco" and not m.startswith("garage")
+    return m not in ("varco", "bifold") and not m.startswith("garage")
 
 
 def _leaf_T(T, d, i, a_start, wi, n, fw, gap):
@@ -637,8 +654,7 @@ def _door_meshes_raw(d: dict):
                            finestre.GLASS_OPACITY if z == "glass" else None)
         for z in ("frame", "leaf", "glass", "handle"))
     model = d.get("model", "porta")
-    if model != "porta":
-        n = 1
+    n = _panels(model, n)
     if model == "varco":
         fw = 0.01
         fb0, fb1 = -fd / 2, fd / 2
@@ -686,7 +702,7 @@ def _door_meshes_raw(d: dict):
     else:
         ws = [(W - 2 * fw) / n] * n
     wl = ws[0]
-    starts = [fw, fw + ws[0]]
+    starts = [fw + sum(ws[:i]) for i in range(n)]
     Ts = [_leaf_T(T, d, i, starts[i], ws[i], n, fw, gap) for i in range(n)]
     a0 = fw
     for i, wi in enumerate(ws):
@@ -723,6 +739,12 @@ def _door_meshes_raw(d: dict):
                     lo = sw / 2 if s > 0 else -sw / 2 - 0.004
                     _box(hw, Ts[i], xa, xb, lo, lo + 0.004, zz - 0.006,
                          zz + 0.006, METAL_COLOR)
+    if model == "bifold":
+        # one knob for each pair, in the middle of its leading panel: the
+        # panel away from the jamb the pair pivots on
+        for i in ([1] if n == 2 else [1, 2]):
+            _knob(hw, T, fw + (i + 0.5) * wl, min(36 * IN, Hh * 0.47), sw)
+        return frame, leaf, glass, hw
     if model == "garage1":
         _garage1(leaf, T, d, hw)
         return frame, leaf, glass, hw
@@ -1019,7 +1041,7 @@ def ask_params(parent, current: dict, title: str, ok_text: str,
                 "fd": fd.value(), "sw": sw.value(),
                 "model": model.currentData(),
                 "handle": hk.currentData(),
-                "arch": ("none" if model.currentData().startswith("garage")
+                "arch": ("none" if _no_arch(model.currentData())
                          else arch.currentData()),
                 "arch_h": ah.value(),
                 "asym": asym, "w1": a1.value() if asym else 0.0,
@@ -1054,21 +1076,33 @@ def ask_params(parent, current: dict, title: str, ok_text: str,
     def on_model() -> None:
         key = model.currentData()
         garage = key.startswith("garage")
-        if key != "porta":
+        bifold = key == "bifold"
+        leaves.setItemText(0, tr("A libro singola (2 pannelli)") if bifold
+                           else tr("1 anta"))
+        leaves.setItemText(1, tr("A libro doppia (4 pannelli)") if bifold
+                           else tr("2 ante uguali"))
+        if bifold:
+            if started[0]:               # just chosen: a closet front
+                leaves.setCurrentIndex(leaves.findData(2))
+                sw.setValue(dflt(1.375 * IN, 0.035))
+            elif leaves.currentData() == 3:
+                leaves.setCurrentIndex(leaves.findData(2))
+        elif key != "porta":
             leaves.setCurrentIndex(leaves.findData(1))
         if garage:
             if W.value() < 1.5:
                 W.setValue(GARAGE_SIZE[0])
                 H.setValue(GARAGE_SIZE[1])
-        leaves.setEnabled(key == "porta")
-        arch.setEnabled(not garage)
-        if garage:
+        leaves.setEnabled(key in ("porta", "bifold"))
+        leaves.model().item(2).setEnabled(not bifold)   # no asymmetric bi-fold
+        arch.setEnabled(not _no_arch(key))
+        if _no_arch(key):
             arch.setCurrentIndex(arch.findData("none"))
         on_arch()
         sw.setEnabled(key != "varco")
-        hk.setEnabled(key not in ("varco", "garage1"))
-        slide.setEnabled(not garage and key != "varco")
-        opn.setEnabled(not garage and key != "varco")
+        hk.setEnabled(key not in ("varco", "garage1", "bifold"))
+        slide.setEnabled(not garage and key not in ("varco", "bifold"))
+        opn.setEnabled(not garage and key not in ("varco", "bifold"))
         for zone, ok in (("leaf", key != "varco"), ("glass", key in GLASS or key in GRID),
                          ("handle", key != "varco")):
             for pre in ("col_", "tex_"):
@@ -1078,7 +1112,7 @@ def ask_params(parent, current: dict, title: str, ok_text: str,
     def on_arch() -> None:
         kind = arch.currentData()
         ah.setEnabled(kind == "low"
-                      and not model.currentData().startswith("garage"))
+                      and not _no_arch(model.currentData()))
         if kind == "full":
             set_quiet(ah, min(10.0, W.value() / 2.0))
 
@@ -1130,8 +1164,10 @@ def ask_params(parent, current: dict, title: str, ok_text: str,
     W.valueChanged.connect(on_arch)
     model.currentIndexChanged.connect(on_model)
     slide.toggled.connect(on_slide)
+    started = [False]
     on_slide()
     on_model()
+    started[0] = True
     slab_from_total()
     for s in (W, H, a1, a2):
         s.valueChanged.connect(slab_from_total)
@@ -1411,7 +1447,9 @@ def _outliner_kind(group):
                       (tr("Porta senza telaio"),
                        " × ".join(fmt_len(v) for v in door_size(d))),
                       (tr("Da terra"), fmt_len(d["sill"])),
-                      (tr("Ante"), str(int(d["leaves"])))]
+                      (tr("Ante"),
+                       tr("{n} pannelli a libro").format(n=_panels("bifold", d["leaves"]))
+                       if d.get("model") == "bifold" else str(int(d["leaves"])))]
             + ([(tr("Anta 1"), fmt_len(d["w1"])),
                 (tr("Anta 2"), fmt_len(d["W"] - 2 * d["fw"] - d["w1"]))]
                if d.get("asym") else [])
