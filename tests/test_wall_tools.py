@@ -88,3 +88,20 @@ def test_adopt_box_becomes_a_wall(viewport):
     with pytest.raises(ValueError):                               # an L in plan is refused
         adotta.wall_from_points([(0, 0, 0), (4, 0, 0), (4, 3, 0), (3.8, 3, 0), (3.8, .2, 0), (0, .2, 0),
                                  (0, 0, 2), (4, 0, 2), (4, 3, 2), (3.8, 3, 2), (3.8, .2, 2), (0, .2, 2)])
+
+
+def test_ortho_snaps_in_45_degree_steps(myhouse, monkeypatch):
+    from myhouse import muri
+    tool = muri.MuriTool()
+    tool.points = [QVector3D(1., 1., 0.)]
+    monkeypatch.setattr(muri._Settings, "ortho", True)
+
+    def snap(x, y):
+        p = tool._ortho(QVector3D(x, y, 0.))
+        return p.x(), p.y()
+    assert snap(4., 1.2) == pytest.approx((4., 1.))             # along X, as plain ortho
+    assert snap(1.3, 5.) == pytest.approx((1., 5.))             # along Y
+    assert snap(4., 3.6) == pytest.approx((3.8, 3.8))           # the 45° diagonal
+    assert snap(-1., 2.8) == pytest.approx((-0.9, 2.9))         # 135°
+    monkeypatch.setattr(muri._Settings, "ortho", False)
+    assert snap(4., 3.6) == pytest.approx((4., 3.6))
