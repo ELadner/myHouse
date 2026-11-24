@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from ._lingua import tr
-from ._imperial import FT, IN, LengthSpin, ask_length, dflt, imperial
+from ._imperial import FT, IN, LengthSpin, ask_length, dflt, fmt_len, imperial
 from ._scroll import scroll_form
 
 import copy
@@ -1444,6 +1444,9 @@ class TettoTool(Tool):
                 tr("Questo tetto non si può calcolare: un timpano deve stare "
                    "tra due spigoli esterni, e almeno un lato deve avere la "
                    "falda"), 6000)
+            return False
+        except ImportError:
+            viewport.flash_status(tr("Serve shapely: pip install shapely"), 6000)
             return False
         self.points = pts
         self.lines = lines
