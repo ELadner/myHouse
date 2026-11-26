@@ -29,6 +29,7 @@ Il codice sorgente della 1.4 è nella cartella `myhouse/`; `myhouse.zip` contien
 - Tetto automatico: dopo il contorno premi P e indica la pendenza (8/12, 30° o 58%); colmi, displuvi e compluvi sono calcolati per qualsiasi contorno, anche con rientranze e sporgenze.
 - Clic su un lato del contorno per farne un timpano; un altro clic lo riporta a falda.
 - W prende il contorno dal filo esterno dei muri.
+- In piedi e pollici il tetto si chiede com'è costruito: altezza del puntone (in squadra con la falda), quota della banchina e pendenza. La quota del tetto si ricava dall'intaglio d'appoggio: su un muro l'appoggio è largo quanto il muro, finché l'intaglio non supera un quarto del puntone; dove non c'è un muro sotto vale l'appoggio indicato (0 = nessun intaglio). In metrico non cambia nulla.
 
 **Porte**
 
@@ -66,6 +67,7 @@ The 1.4 source code is in the `myhouse/` folder; `myhouse.zip` holds the same fi
 - Automatic roof: after the outline press P and give the pitch (8/12, 30° or 58%); ridges, hips and valleys are worked out for any outline, bump-outs and recesses included.
 - Click an edge of the outline to make it a gable end; click again for a sloping plane.
 - W takes the outline from the outer face of the walls.
+- In feet and inches the roof is asked for the way it is framed: rafter depth (square to the slope), top plate height and pitch. Where the roof stands follows from the bird's mouth: on a wall the seat cut is as long as the wall is wide, as long as the notch stays within a quarter of the rafter; where there is no wall underneath the seat cut typed in the dialog counts (0 = no bird's mouth). Nothing changes in metric.
 
 **Doors**
 

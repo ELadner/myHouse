@@ -4105,4 +4105,24 @@ TR = {
         "Wall joint: this end does not meet another wall in a corner (walls drawn separately are joined first with Wall joining)",
     "Cambia un angolo tra giunto a sghembo e di testa: il muro su cui fai clic è passante, un altro clic per il contrario.":
         "Changes a corner between mitre and butt joint: the wall you click runs through, click again for the other way.",
+    "Altezza del puntone, in squadra con la falda (s) (m)":
+        "Rafter depth, square to the slope (s) (m)",
+    "Banchina: da terra / sopra la quota del piano (z) (m)":
+        "Top plate: from ground / above the floor elevation (z) (m)",
+    "Appoggio dove non c'è un muro sotto (a) (m)":
+        "Seat cut where there is no wall underneath (a) (m)",
+    "Su un muro l'appoggio (a) è largo quanto il muro, finché l'intaglio non supera un quarto dell'altezza del puntone. La quota del tetto si ricava da banchina, puntone e pendenza.":
+        "On a wall the seat cut (a) is as long as the wall is wide, as long as the notch stays within a quarter of the rafter depth. The height of the roof follows from the top plate, the rafter and the pitch.",
+    "Puntone":
+        "Rafter depth",
+    "Banchina":
+        "Top plate",
+    "Appoggio":
+        "Seat cut",
+    "Tacca":
+        "Heel cut",
+    "Sopra la banchina":
+        "Height above plate",
+    "appoggio accorciato: intaglio di un quarto del puntone":
+        "seat cut shortened: the notch is a quarter of the rafter",
 }

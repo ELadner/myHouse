@@ -12,7 +12,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QPen, QVector3D
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox,
-    QFormLayout, QInputDialog, QLineEdit, QPushButton, QSpinBox,
+    QFormLayout, QInputDialog, QLabel, QLineEdit, QPushButton, QSpinBox,
     QVBoxLayout,
 )
 
@@ -20,7 +20,7 @@ from core import bim
 from . import _ifc
 from tools.base import Tool, ToolContext
 
-from . import _codici, _tetto_auto, _tipi, muri, piani, travi
+from . import _codici, _tetto_auto, _tetto_calc, _tipi, muri, piani, travi
 from ._strati import (layer_subs_flat, layers_row, layers_total,
                      paint_layer_face)
 
@@ -51,8 +51,9 @@ _TRAVI_DEFAULT = {"on": False, "shape": "rect", "w": 0.12, "h": 0.20,
 
 
 class _Settings:
-    thickness = dflt(8 * IN, 0.20)
+    thickness = dflt(7.25 * IN, 0.20)    # feet and inches: a 2x8 rafter
     z_base = dflt(8 * FT, 3.0)
+    seat = 3.5 * IN                      # seat cut where no wall is underneath
     offset = 0.5
     pitch = dflt(math.degrees(math.atan2(6, 12)), 30.0)
     name = tr("Tetto")
@@ -211,11 +212,25 @@ def _line_int(p1, d1, p2, d2):
     return (p1[0] + t * d1[0], p1[1] + t * d1[1]), t
 
 
+def _planes(d):
+    """(region, (a, b, c)) of every plane of the roof: z = a·x + b·y + c."""
+    from shapely.geometry import LineString, LinearRing
+    from shapely.ops import polygonize, unary_union
+    planes = []
+    for region in polygonize(unary_union(
+            [LinearRing([tuple(p) for p in d["poly"]])]
+            + [LineString([tuple(a), tuple(b)]) for a, b in d["lines"]])):
+        ring = list(region.exterior.coords)[:-1]
+        pl = _plane([(x, y, _z_at(d, x, y)) for x, y in ring])
+        if pl:
+            planes.append((region, pl))
+    return planes
+
+
 def apply_offset(d, off):
     if off <= EPS:
         return d
-    from shapely.geometry import LineString, LinearRing, Point
-    from shapely.ops import polygonize, unary_union
+    from shapely.geometry import Point
     poly = [tuple(p) for p in d["poly"]]
     if _area(poly) < 0:
         poly.reverse()
@@ -223,13 +238,7 @@ def apply_offset(d, off):
     lines = [(tuple(a), tuple(b)) for a, b in d["lines"]]
     n = len(poly)
 
-    planes = []
-    for region in polygonize(unary_union(
-            [LinearRing(poly)] + [LineString(l) for l in lines])):
-        ring = list(region.exterior.coords)[:-1]
-        pl = _plane([(x, y, _z_at(d, x, y)) for x, y in ring])
-        if pl:
-            planes.append((region, pl))
+    planes = _planes(d)
 
     def plane_z(x, y):
         if not planes:
@@ -426,12 +435,26 @@ def _keyhole(pg, bridges_out=None):
     return ring
 
 
+def _layer_subs(d):
+    """The layers of a roof as roofs of their own. A framed roof (see
+    frame()) gives its layers square to the slope: here they are stretched to
+    the plumb thickness the mesh is built with."""
+    subs = layer_subs_flat(d)
+    total = sum(s["th"] for s in subs)
+    if d.get("fr") and total > EPS:
+        k = d["th"] / total
+        for s in subs:
+            s["th"] *= k
+            s["_dz"] *= k
+    return subs
+
+
 def roof_mesh(d, mesh=None):
     from core.mesh import Mesh
     if (mesh is None and d.get("layers") and not d.get("_lay")
             and not d.get("_hide_lay")):
         mesh = Mesh()
-        for sub in layer_subs_flat(d):
+        for sub in _layer_subs(d):
             roof_mesh(sub, mesh)
         return mesh
     from shapely.geometry import LineString, LinearRing
@@ -857,6 +880,156 @@ def _roof_offset(d) -> float:
     return float(d.get("off", 0.0))
 
 
+# ---------------------------------------------------------------------------
+# Framing: rafter depth, plate height and bird's mouth (feet and inches)
+# ---------------------------------------------------------------------------
+# In feet and inches the roof is asked for the way it is framed: the depth of
+# the rafter (square to its slope), the height of the top plate and the pitch.
+# Where it stands follows from the bird's mouth (_tetto_calc): its top is at
+# plate height + height above plate over the outline, which is the outer face
+# of the wall. A roof made this way carries the numbers in d["fr"]; d["th"] is
+# still the plumb thickness and d["base"] the top at the outline, as every
+# other tool reads them. In metric nothing changes.
+
+def framing_on() -> bool:
+    return imperial()
+
+
+def eave_slopes(points, lines, rel):
+    """(a, b, slope) of every edge of the outline that is an eave: both ends
+    at the lowest height (or one end, when no edge has both), with the rise
+    over run of the plane on it. rel(p) is the height of a point. A flat roof
+    gives every edge, at slope 0. Raises ImportError without shapely."""
+    pts = [tuple(p) for p in points]
+    n = len(pts)
+    if n < 3:
+        return []
+    ctrl = [[c[0], c[1], rel(c)] for c in ctrl_points(pts, lines)]
+    low = min(c[2] for c in ctrl)
+    edges = [(pts[i], pts[(i + 1) % n]) for i in range(n)]
+    edges = [(a, b) for a, b in edges
+             if math.hypot(b[0] - a[0], b[1] - a[1]) > SAME]
+    if max(c[2] for c in ctrl) - low < 1e-9:
+        return [(a, b, 0.0) for a, b in edges]
+    from shapely.geometry import Point
+    planes = _planes({"poly": pts, "lines": lines, "ctrl": ctrl, "base": low})
+    for want in (2, 1):
+        out = []
+        for a, b in edges:
+            if sum(abs(rel(p) - low) < 1e-6 for p in (a, b)) < want:
+                continue
+            mid = Point((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+            on = [pl for region, pl in planes if region.distance(mid) < 1e-6]
+            if on:
+                out.append((a, b, max(math.hypot(pl[0], pl[1]) for pl in on)))
+        if out:
+            return out
+    return []
+
+
+def wall_under(scene, a, b, top=None):
+    """Width of the wall the edge a-b of an outline runs along (on its face or
+    anywhere over it), or None. With more than one, the wall whose top is
+    nearest to the height 'top'. Raises ImportError without shapely."""
+    if scene is None:
+        return None
+    from shapely.geometry import Point, Polygon
+    from . import solaio
+    L = math.hypot(b[0] - a[0], b[1] - a[1])
+    if L < SAME:
+        return None
+    ux, uy = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+    probes = [Point(a[0] + ux * L * t - uy * k, a[1] + uy * L * t + ux * k)
+              for t in (0.5, 0.25, 0.75) for k in (0.0, 0.02, -0.02)]
+    best = None
+    for g in scene.groups:
+        wd = muri.wall_data(g)
+        if wd is None:
+            continue
+        try:
+            ring = solaio._wall_polygon_world(g)
+        except Exception:
+            continue
+        wx, wy = ring[1][0] - ring[0][0], ring[1][1] - ring[0][1]
+        wl = math.hypot(wx, wy)
+        if wl < SAME or abs(wx * ux + wy * uy) / wl < 0.9:
+            continue                             # not along the edge
+        poly = Polygon(ring)
+        if not poly.is_valid:
+            poly = poly.buffer(0)
+        poly = poly.buffer(0.011, join_style=2)
+        if not any(poly.contains(q) for q in probes):
+            continue
+        width = float(wd["th"])
+        if wd.get("th_b") is not None:
+            width = (width + float(wd["th_b"])) / 2
+        off = (abs(wd.get("z0", 0.0) + wd.get("h", 0.0) - top)
+               if top is not None else 0.0)
+        if best is None or off < best[0] - 1e-9:
+            best = (off, width)
+    return best[1] if best else None
+
+
+def frame(scene, points, lines, rel, depth, seat, top=None):
+    """The bird's mouth of a roof on this outline with rafters this deep:
+    _tetto_calc.birdsmouth() plus depth, slope (of the eave it was worked out
+    on), wall (its width, None where no wall is underneath) and free (the seat
+    asked for where there is no wall). Every eave is worked out on its own
+    wall; the one that puts the roof highest counts, so that no rafter is cut
+    deeper than it may be."""
+    try:
+        eaves = eave_slopes(points, lines, rel)
+    except ImportError:
+        eaves = []
+    best = None
+    for a, b, slope in eaves or [(None, None, 0.0)]:
+        wall = None
+        if a is not None:
+            try:
+                wall = wall_under(scene, a, b, top)
+            except ImportError:
+                pass
+        cut = _tetto_calc.birdsmouth(depth, slope, plate=wall, seat=seat)
+        cut.update(slope=slope, wall=wall)
+        if best is None or cut["hap"] > best["hap"] + 1e-9:
+            best = cut
+    best.update(depth=float(depth), free=float(seat))
+    return best
+
+
+def _lift(d, dz) -> dict:
+    """The roof dz higher."""
+    d = dict(d, base=d["base"] + dz,
+             ctrl=[[c[0], c[1], c[2] + dz] for c in d["ctrl"]])
+    if d.get("src"):
+        d["src"] = dict(d["src"], ctrl=[[c[0], c[1], c[2] + dz]
+                                        for c in d["src"]["ctrl"]])
+    if d.get("lv") and "off" in d:
+        d["off"] = d["off"] + dz
+    return d
+
+
+def reframe(d, depth) -> dict:
+    """A framed roof with rafters of another depth: the plate stays where it
+    is, the roof stands as the new bird's mouth puts it."""
+    fr = dict(d["fr"])
+    cut = _tetto_calc.birdsmouth(depth, fr["slope"], plate=fr.get("wall"),
+                                 seat=fr.get("free"))
+    d = _lift(d, cut["hap"] - fr["hap"])
+    fr.update(cut, depth=float(depth))
+    d["th"], d["fr"] = cut["plumb"], fr
+    return d
+
+
+def cut_text(fr) -> str:
+    """The bird's mouth in words, for the status bar."""
+    text = " · ".join(f"{tr(name)} {fmt_len(fr[k])}" for name, k in (
+        ("Appoggio", "seat"), ("Tacca", "heel"), ("Sopra la banchina", "hap")))
+    if fr.get("limited"):
+        text += " · " + tr("appoggio accorciato: intaglio di un quarto del puntone")
+    return text
+
+
 def rebuild_roof(group, d) -> None:
     group.children = roof_parts(d)
     _ifc.tag(group, "IfcRoof")
@@ -906,8 +1079,8 @@ def _disegno_travi_tetto(p):
     t(p, 250, 156, "n = " + tr("numero di travi"), size=9)
 
 
-def _disegno_tetto(p):
-    r, t, dim, ext = muri._r, muri._t, muri._dim, muri._ext
+def _disegno_pianta(p):
+    r, t, dim = muri._r, muri._t, muri._dim
     t(p, 10, 12, tr("Pianta"), size=9)
     pen = QPen(muri._C_LINEA, 1.2)
     pen.setStyle(Qt.DashLine)
@@ -918,6 +1091,44 @@ def _disegno_tetto(p):
     t(p, 85, 94, tr("contorno"), size=9)
     dim(p, 20, 50, 50, 50, "o", 1)
     t(p, 270, 12, tr("Sezione"), size=9)
+
+
+def _disegno_tetto_fr(p):
+    """The framed roof: z to the top plate, s square to the slope, a the seat
+    of the bird's mouth."""
+    r, t, dim, ext = muri._r, muri._t, muri._dim, muri._ext
+    _disegno_pianta(p)
+    p.setPen(QPen(muri._C_LINEA, 1.5))
+    p.drawLine(QPointF(250, 150), QPointF(470, 150))
+    muri._hatch(p, 250, 150, 470, 156)
+    from PySide6.QtGui import QPolygonF
+    pts = [(280, 102.4), (360, 54.4), (440, 102.4), (440, 116.4),
+           (360, 68.4), (280, 116.4)]
+    p.setPen(QPen(muri._C_LINEA, 1.2))
+    p.setBrush(muri._C_LEGNO)
+    p.drawPolygon(QPolygonF([QPointF(*q) for q in pts]))
+    r(p, 300, 96, 314, 150, muri._C_BIANCO)      # the walls: the rafters are
+    r(p, 406, 96, 420, 150, muri._C_BIANCO)      # notched over them
+    pen = QPen(muri._C_LINEA, 1)
+    pen.setStyle(Qt.DashDotLine)
+    p.setPen(pen)
+    p.drawLine(QPointF(250, 130), QPointF(470, 130))
+    t(p, 430, 126, tr("piano"), size=8)
+    dim(p, 328, 96, 328, 130, "z", 1)
+    ext(p, 314, 96, 328, 96)
+    dim(p, 280, 142, 300, 142, "o", 1)
+    ext(p, 280, 116.4, 280, 142)
+    dim(p, 406, 106, 420, 106, "a", -1)
+    p.setPen(QPen(muri._C_QUOTA, 1.1))           # s, square to the slope
+    p.drawLine(QPointF(385, 69.4), QPointF(378.8, 79.7))
+    for x, y in ((385, 69.4), (378.8, 79.7)):
+        p.drawLine(QPointF(x - 2.6, y - 1.5), QPointF(x + 2.6, y + 1.5))
+    t(p, 389, 65, "s", muri._C_QUOTA, 10, True)
+
+
+def _disegno_tetto(p):
+    r, t, dim, ext = muri._r, muri._t, muri._dim, muri._ext
+    _disegno_pianta(p)
     p.setPen(QPen(muri._C_LINEA, 1.5))
     p.drawLine(QPointF(250, 150), QPointF(470, 150))
     muri._hatch(p, 250, 150, 470, 156)
@@ -1024,12 +1235,18 @@ def ask_beams(parent, cur: dict, with_on: bool = False):
             "ins": ins.value(), "mode": mode.currentData()}
 
 
-def ask_settings(parent, scene=None, editing: bool = False, groups=None) -> bool:
+def ask_settings(parent, scene=None, editing: bool = False, groups=None,
+                 framed=None) -> bool:
+    """framed: the roof is asked for as it is framed (rafter depth, top plate,
+    seat cut) rather than by thickness and eaves height; None = as the units
+    in use have it (framing_on())."""
+    if framed is None:
+        framed = framing_on()
     dlg = QDialog(parent)
     dlg.setWindowTitle(tr("Tetto"))
     lay = QVBoxLayout(dlg)
     form = QFormLayout()
-    form.addRow(muri._Schema(_disegno_tetto))
+    form.addRow(muri._Schema(_disegno_tetto_fr if framed else _disegno_tetto))
     thick = _spin(_Settings.thickness, 0.02, 5.0)
     z = _spin(_Settings.z_base, -100.0, 1000.0)
     off = _spin(_Settings.offset, 0.0, 10.0)
@@ -1044,12 +1261,25 @@ def ask_settings(parent, scene=None, editing: bool = False, groups=None) -> bool
                 z.setValue(lv["h"])
         lvl.currentIndexChanged.connect(on_level)
         form.addRow(tr("Piano che copre"), lvl)
-    form.addRow(tr("Spessore (s) (m)"), thick)
+    form.addRow(tr("Altezza del puntone, in squadra con la falda (s) (m)")
+                if framed else tr("Spessore (s) (m)"), thick)
     lay_state = [copy.deepcopy(_Settings.layers)]
     lrow = layers_row(dlg, thick, lay_state, kind="tetto")
     form.addRow(tr("Strati"), lrow)
-    form.addRow(tr("Gronda: da terra / sopra la quota del piano (z) (m)"), z)
+    form.addRow(tr("Banchina: da terra / sopra la quota del piano (z) (m)")
+                if framed else
+                tr("Gronda: da terra / sopra la quota del piano (z) (m)"), z)
     form.addRow(tr("Sporto rispetto al contorno (o) (m)"), off)
+    seat = None
+    if framed:
+        seat = _spin(_Settings.seat, 0.0, 2.0)
+        form.addRow(tr("Appoggio dove non c'è un muro sotto (a) (m)"), seat)
+        note = QLabel(tr(
+            "Su un muro l'appoggio (a) è largo quanto il muro, finché "
+            "l'intaglio non supera un quarto dell'altezza del puntone. La "
+            "quota del tetto si ricava da banchina, puntone e pendenza."))
+        note.setWordWrap(True)
+        form.addRow(note)
     paint = muri.add_paint_rows(form, lambda k: getattr(_Settings, k, None),
                                 ROOF_ZONES)
     form.addRow(tr("Nome"), name)
@@ -1121,6 +1351,8 @@ def ask_settings(parent, scene=None, editing: bool = False, groups=None) -> bool
     _Settings.thickness = (layers_total(_Settings.layers) if _Settings.layers
                            else thick.value())
     _Settings.z_base = z.value()
+    if seat is not None:
+        _Settings.seat = seat.value()
     _Settings.name = name.text().strip() or tr("Tetto")
     _Settings.level = (lvl.currentData() or None) if lvl is not None else None
     if lvl is not None:
@@ -1206,6 +1438,8 @@ class TettoTool(Tool):
         self.beam_side = None
         self._undo: list = []
         self.auto = None                # automatic roof: outline and gables
+        self.legacy = False             # an old roof being edited as it is:
+        self._fr = self._fr_key = None  # thickness and eaves, no framing
 
     def on_activate(self, viewport) -> None:
         self._scene = viewport.scene
@@ -1245,6 +1479,12 @@ class TettoTool(Tool):
         _Settings.tipo_id, _Settings.tipo_nome = d.get("tipo_id"), d.get("tipo_nome")
         _Settings.level = d.get("lv")
         _Settings.z_base = d.get("off", d["base"]) if d.get("lv") else d["base"]
+        fr = d.get("fr") if framing_on() else None
+        self.legacy = not fr
+        if fr:                          # as it was asked for: rafter and plate
+            _Settings.thickness = fr["depth"]
+            _Settings.z_base = fr["plate"]
+            _Settings.seat = fr.get("free", _Settings.seat)
         _Settings.offset = _roof_offset(d)
         _Settings.name = group.name or _Settings.name
         self.edit_group = group
@@ -1286,8 +1526,10 @@ class TettoTool(Tool):
                 piani.set_active(d["lv"])
             except Exception:
                 pass
+        if framing_on() and self.legacy:
+            self._adopt_framing(d)
         if not ask_settings(viewport.window(), viewport.scene, editing=True,
-                            groups=[group]):
+                            groups=[group], framed=self._framed()):
             self._exit(viewport)
             return
         pt = {"th": _Settings.thickness, "layers": _Settings.layers,
@@ -1508,11 +1750,56 @@ class TettoTool(Tool):
         self._undo.append((list(self.points), list(self.lines),
                            self.line_start))
 
-    def _place(self):
+    # -- framing -------------------------------------------------------------
+    def _framed(self) -> bool:
+        return framing_on() and not self.legacy
+
+    def _plate(self) -> float:
+        """Where the field z puts things: the top plate of a framed roof,
+        the eaves of any other."""
         sc = getattr(self, "_scene", None)
         if sc is None:
-            return _Settings.z_base, {}
-        return piani.place(sc, _Settings.level, _Settings.z_base)
+            return _Settings.z_base
+        return piani.place(sc, _Settings.level, _Settings.z_base)[0]
+
+    def _frame(self, fresh: bool = False):
+        """The bird's mouth of the roof as drawn so far (frame()), or None
+        when the roof is not a framed one."""
+        if not self._framed():
+            return None
+        key = (tuple(tuple(p) for p in self.points),
+               tuple((tuple(a), tuple(b)) for a, b in self.lines),
+               tuple(sorted(self.heights.items())), _Settings.thickness,
+               _Settings.seat, _Settings.z_base, _Settings.level)
+        if fresh or key != self._fr_key:
+            self._fr = frame(getattr(self, "_scene", None), self.points,
+                             self.lines, self._rel, _Settings.thickness,
+                             _Settings.seat, self._plate())
+            self._fr_key = key
+        return self._fr
+
+    def _adopt_framing(self, d) -> None:
+        """An old roof opened in feet and inches: the rafter and the plate
+        that give the roof it is now."""
+        self.legacy = False
+        if not d.get("layers"):
+            try:
+                slope = max([s for _a, _b, s in eave_slopes(
+                    self.points, self.lines, self._rel)] or [0.0])
+            except ImportError:
+                slope = 0.0
+            _Settings.thickness = _tetto_calc.depth_of(d["th"], slope)
+        top = _Settings.z_base              # the top at the outline, till now
+        for _ in range(2):                  # the wall is picked by plate height
+            _Settings.z_base = top - self._frame(fresh=True)["hap"]
+
+    def _place(self):
+        fr = self._frame()
+        z = _Settings.z_base + (fr["hap"] if fr else 0.0)
+        sc = getattr(self, "_scene", None)
+        if sc is None:
+            return z, {}
+        return piani.place(sc, _Settings.level, z)
 
     def _base(self) -> float:
         return self._place()[0]
@@ -1860,19 +2147,23 @@ class TettoTool(Tool):
         ctrl = self._ctrl()
         rels = [self._rel(c) for c in ctrl]
         low = min(rels)
+        fr = self._frame(fresh=True)
         base, extra = self._place()
         d = {"poly": [list(p) for p in self.points],
              "lines": [[list(a), list(b)] for a, b in self.lines],
              "ctrl": [[c[0], c[1], base + r - low]
                       for c, r in zip(ctrl, rels)],
-             "base": base, "th": _Settings.thickness,
+             "base": base, "th": fr["plumb"] if fr else _Settings.thickness,
              "rise": max(rels) - low}
         d.update(extra)
+        if fr:
+            d["fr"] = dict(fr, plate=_Settings.z_base)
         lay = (old_d.get("layers") if old_d is not None and not self.panel
                else _Settings.layers)
         if lay:
             d["layers"] = copy.deepcopy(lay)
-            d["th"] = layers_total(lay)
+            if not fr:
+                d["th"] = layers_total(lay)
         tv = _Settings.travi
         if tv.get("on"):
             side = self.beam_side
@@ -1917,8 +2208,13 @@ class TettoTool(Tool):
                 target.ext = ext
                 if upd:
                     def _rb(g, q):
-                        nd = dict(roof_data(g))
-                        nd.update(q)
+                        nd, q = dict(roof_data(g)), dict(q)
+                        if nd.get("fr") and q.get("th") is not None:
+                            depth = q.pop("th")     # of a framed roof: rafter
+                            nd.update(q)
+                            nd = reframe(nd, depth)
+                        else:
+                            nd.update(q)
                         rebuild_roof(g, {k: v for k, v in nd.items()
                                          if v is not None})
                     _tipi.update_instances(scene, "tetto", upd, _rb)
@@ -1932,7 +2228,10 @@ class TettoTool(Tool):
             viewport.flash_status(tr("Tetto modificato"), 3000)
             self._exit(viewport)
             return
-        viewport.flash_status(tr("Tetto creato"), 3000)
+        if fr:
+            viewport.flash_status(tr("Tetto creato") + " · " + cut_text(fr), 9000)
+        else:
+            viewport.flash_status(tr("Tetto creato"), 3000)
         self._reset()
         viewport.update()
 
@@ -1968,6 +2267,19 @@ def _beam_props(d):
     return [(tr("Travi"), sec), (tr("Interasse travi"), fmt_len(tv["sp"]))]
 
 
+def _frame_props(d):
+    fr = d.get("fr")
+    if not fr:
+        return []
+    return [(tr("Puntone"), fmt_len(fr["depth"])),
+            (tr("Banchina"), fmt_len(fr["plate"])),
+            (tr("Appoggio"), fmt_len(fr["seat"])
+             + ("" if fr.get("wall") is None else
+                " (" + tr("muro") + " " + fmt_len(fr["wall"]) + ")")),
+            (tr("Tacca"), fmt_len(fr["heel"])),
+            (tr("Sopra la banchina"), fmt_len(fr["hap"]))]
+
+
 def _outliner_kind(group):
     d = roof_data(group)
     if d is None:
@@ -1978,7 +2290,7 @@ def _outliner_kind(group):
                       (tr("Gronda"), fmt_len(d["base"])),
                       (tr("Dislivello"), fmt_len(d.get("rise", 0.0))),
                       (tr("Sporto"), fmt_len(_roof_offset(d)))]
-            + _beam_props(d) + piani.level_props(d)}
+            + _frame_props(d) + _beam_props(d) + piani.level_props(d)}
 
 
 def _selected_roofs(scene):
