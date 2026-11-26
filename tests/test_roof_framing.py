@@ -49,6 +49,24 @@ def test_roof_on_walls_sits_on_the_plate_with_a_birdsmouth(viewport, roof):
     assert min(c[2] for c in d["ctrl"]) == pytest.approx(d["base"])
 
 
+def test_walls_under_the_plate_are_not_cut_to_the_slope(viewport, roof):
+    from myhouse import muri, tetto
+    scene = viewport.scene
+    outline = walls(viewport)
+    muri.build_walls(scene, [(10 * FT, 0.), (10 * FT, 12 * FT)], False, 3.5 * IN, 11 * FT, 0.0, "T", align="center")
+    roof(points=outline)
+    cut = {round(muri.wall_data(g)["h"] / FT): "clip" in muri.wall_data(g) for g in scene.groups if muri.wall_data(g)}
+    assert cut == {8: False, 11: True}          # the rafters overlap the plate; a wall through the roof is still cut
+    assert tetto.update_roof_clips(scene) == 0
+
+
+def test_walls_under_a_metric_roof_are_cut_as_before(viewport, roof):
+    from myhouse import muri
+    outline = walls(viewport, width=0.30, height=3.0)
+    roof(units="metric", points=outline, depth=0.20, plate=3.1)               # its underside dips into the walls
+    assert all("clip" in muri.wall_data(g) for g in viewport.scene.groups if muri.wall_data(g))
+
+
 def test_roof_on_a_wide_wall_gets_a_shorter_seat(viewport, roof):
     d = roof(points=walls(viewport, width=11.25 * IN))
     fr = d["fr"]

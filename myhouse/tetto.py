@@ -683,6 +683,15 @@ def _roof_low(rd) -> float:
     return (min(zs) if zs else rd["base"]) - rd["th"]
 
 
+def _under_plate(rd, wd) -> bool:
+    """Whether the wall stops at the top plate of a framed roof (or below):
+    the rafters are notched over it, so the two overlap by the bird's mouth
+    and the wall is not cut to the slope. A wall that goes on up through the
+    roof (a gable end) is still cut."""
+    fr = rd.get("fr")
+    return bool(fr) and wd["z0"] + wd["h"] <= rd["base"] - fr["hap"] + 1e-4
+
+
 def update_roof_clips(scene) -> int:
     try:
         import shapely
@@ -701,7 +710,8 @@ def update_roof_clips(scene) -> int:
         wd = muri.wall_data(g)
         if wd is None:
             continue
-        wr = [x for x in roofs if wd["z0"] < _roof_low(x[0]) - 1e-6]
+        wr = [x for x in roofs if wd["z0"] < _roof_low(x[0]) - 1e-6
+              and not _under_plate(x[0], wd)]
         clip = _wall_clip(wd, g, wr) if wr else None
         new = dict(wd)
         if clip:
