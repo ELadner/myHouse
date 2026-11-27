@@ -58,6 +58,34 @@ def test_footprint_is_the_outer_face_of_the_walls(viewport):
     assert solaio.find_footprint(type(scene)()) is None
 
 
+def test_footprint_of_a_level_takes_the_walls_given_no_level(viewport):
+    # an L-shaped house drawn before the model had levels; the one wall drawn after, on
+    # the ground floor, is the wing's west wall carried on down through the house: outside
+    # above y = 6, a partition below it, the house's north wall meeting it half way
+    from shapely.geometry import Polygon
+    from myhouse import muri, solaio
+    scene = viewport.scene
+    ground = {"id": "L0", "name": "Ground"}
+
+    def walls(pts, level=None, z=0.0):
+        muri.build_walls(scene, pts, False, 0.30, 2.7, z, "W", align="center", level=level)
+    walls([(0., 0.), (10., 0.), (10., 10.), (6., 10.)])
+    walls([(6., 6.), (0., 6.), (0., 0.)])
+    walls([(6., 10.), (6., 0.)], ground)
+    whole = Polygon(solaio.find_footprint(scene, 3., 2.))
+    assert whole.area == pytest.approx(82., abs=0.2)           # the L, out to the wall faces
+    foot = Polygon(solaio.find_footprint(scene, 3., 2., "L0"))
+    assert foot.area == pytest.approx(whole.area, abs=1e-6)   # not a ring round that one wall
+    assert foot.bounds == pytest.approx((-.15, -.15, 10.15, 10.15), abs=2e-3)
+    assert solaio.find_room(scene, 3., 3., "L0") is not None   # nor is the room it closes lost
+    # walls given no level on the storey above are not this level's
+    walls([(20., 0.), (24., 0.), (24., 4.), (20., 4.), (20., 0.)], None, 2.7)
+    assert Polygon(solaio.find_footprint(scene, 3., 2., "L0")).area == pytest.approx(whole.area, abs=1e-6)
+    # a level whose walls all carry it is read as before
+    walls([(30., 0.), (34., 0.), (34., 4.), (30., 4.), (30., 0.)], {"id": "L1", "name": "First"}, 2.7)
+    assert Polygon(solaio.find_footprint(scene, 32., 2., "L1")).area == pytest.approx(4.3 * 4.3, abs=0.05)
+
+
 def test_tool_computes_and_creates_the_roof(viewport, monkeypatch):
     from myhouse import tetto
     tool = tetto.TettoTool()

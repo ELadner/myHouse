@@ -390,17 +390,44 @@ def _wall_polygon_world(group):
     return out
 
 
+def _level_walls(scene, level_id=None):
+    """The wall groups of a level: the walls given that level and, with them,
+    the walls given no level at all that stand in the same storey (a model
+    often has walls drawn before it had levels; a wall of the level may run
+    on from outside to inside where one of those meets it half way, and the
+    outline of the building is only whole with both). Every wall when no
+    level is asked for; none when the level has no wall of its own."""
+    walls = [(g, wd) for g in scene.groups
+             for wd in (muri.wall_data(g),) if wd is not None]
+    if not level_id:
+        return [g for g, _wd in walls]
+
+    def band(wd):
+        z0 = float(wd.get("z0") or 0.0)
+        return z0, z0 + float(wd.get("h") or 0.0)
+
+    own = [(g, wd) for g, wd in walls if wd.get("lv") == level_id]
+    if not own:
+        return []
+    lo = min(band(wd)[0] for _g, wd in own)
+    hi = max(band(wd)[1] for _g, wd in own)
+    out = []
+    for g, wd in walls:
+        if wd.get("lv") == level_id:
+            out.append(g)
+        elif not wd.get("lv"):
+            z0, z1 = band(wd)
+            if min(z1, hi) - max(z0, lo) > 0.5 * min(z1 - z0, hi - lo):
+                out.append(g)
+    return out
+
+
 def find_room(scene, x: float, y: float, level_id=None):
     from shapely.geometry import Point, Polygon
     from shapely.ops import unary_union
 
     polys = []
-    for g in scene.groups:
-        wd = muri.wall_data(g)
-        if wd is None:
-            continue
-        if level_id and wd.get("lv") != level_id:
-            continue
+    for g in _level_walls(scene, level_id):
         p = Polygon(_wall_polygon_world(g))
         if not p.is_valid:
             p = p.buffer(0)
@@ -424,17 +451,14 @@ def find_footprint(scene, x=None, y=None, level_id=None):
     """Outer outline (list of points) of the walls joined together: of the
     building (x, y) is in or nearest to, or of the largest one when no point
     is given. None if there are no walls. With level_id only that level's
-    walls count, or every wall if that level has none.
+    walls count (see _level_walls), or every wall if that level has none.
     Raises ImportError without shapely."""
     from shapely.geometry import Point, Polygon
     from shapely.ops import unary_union
 
     def plans(level):
         out = []
-        for g in scene.groups:
-            wd = muri.wall_data(g)
-            if wd is None or (level and wd.get("lv") != level):
-                continue
+        for g in _level_walls(scene, level):
             p = Polygon(_wall_polygon_world(g))
             if not p.is_valid:
                 p = p.buffer(0)
